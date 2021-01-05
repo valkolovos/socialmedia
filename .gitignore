@@ -1,0 +1,5 @@
+venv
+creds-social-media-project-234019.json
+service-account-creds.json
+**/__pycache__
+**/*.pyc

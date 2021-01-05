@@ -1,0 +1,12 @@
+indexes:
+
+- kind: Message
+  ancestor: yes
+  properties:
+  - name: created
+    direction: desc
+
+- kind: Notification
+  ancestor: yes
+  properties:
+    - name: read

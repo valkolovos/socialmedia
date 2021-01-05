@@ -1,0 +1,14 @@
+<head>
+  <title>Log In</title>
+</head>
+<body>
+  {% if error %}{{ error }}<br>{% endif %}
+  <form method="POST">
+    {% if form_errors.email %}{{ form_errors.email }}<br>{% endif %}
+    <input type="email" name="email" placeholder="Email" value="{{ email }}"><br>
+    {% if form_errors.password %}{{ form_errors.password }}<br>{% endif %}
+    <input type="password" name="password" placeholder="Password"><br>
+    <button type="submit" id="signupSubmit" class="btn btn-primary">Submit</button><br>
+  </form>
+  <a href="/signup">Sign Up</a><br>
+</body>

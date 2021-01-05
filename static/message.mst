@@ -1,0 +1,33 @@
+<div class="row no-gutters" id="{{ message.id }}">
+  <div class="col-xs-12 border-top mt-4">
+    <div class="row no-gutters"><div class="col-xs-12">
+      {{ message.text }}
+    </div>
+  </div>
+  {{#message.files}}
+  <div class="row no-gutters">
+    <div class="col-xs-12">
+      <img src="{{.}}" class="img-thumbnail" width="200">
+    </div>
+  </div>
+  {{/message.files}}
+  <div class="row no-gutters">
+    <div class="col-xs-12 ml-3 mt-3">
+      <div class="form-group">
+        <input type="hidden" id="connectionId-{{ message.id }}" value="{{ connectionId }}"/>
+        <textarea id="comment-{{ message.id }}" rows="3"></textarea>
+        <div class="input-group input-file mb-3" data-type="comment-{{ message.id }}">
+          <span class="input-group-prepend">
+            <button class="btn btn-outline-primary btn-choose" type="button">Choose</button>
+          </span>
+          <input type="text" class="form-control" placeholder="Add picture or video" style="cursor: pointer;">
+          <span class="input-group-append">
+            <button class="btn btn-warning btn-reset" type="button">Reset</button>
+          </span>
+        </div>
+      </div>
+      <button type="submit" id="comment-submit-{{ message.id }}" class="btn btn-primary">Submit</button>
+    </div>
+  </div>
+</div>
+
