@@ -48,6 +48,9 @@ Storage is done in Firestore running in Datastore mode. You can find details abo
 
 Asynchronous operations (such as notifications) are implemented as Cloud Tasks. There are several queues that get created with the application installation. You can see details about these queues on the [Google Cloud Console](https://console.cloud.google.com) under Tools -> Cloud Tasks
 
+# Web-based App
+All the HTML for the web-based app is contained in the `templates` directory. Javascript is in `static`.
+
 # TODO
 * Document APIs
 * Provide approval mechanism for new users
