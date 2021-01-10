@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import click
 import functools
 import json
@@ -26,7 +28,7 @@ def is_logged_in(func):
 
 @click.group()
 def freme():
-    ''' CLI to interact with Social Media project '''
+    ''' CLI to interact with Social Media project. For help with specific commands, run freme.py [command] --help '''
     pass
 
 @freme.group()
@@ -88,9 +90,9 @@ def comment(connection_id, message_id, comment):
 def connection():
     pass
 
-@connection.command()
+@connection.command(name='list')
 @is_logged_in
-def list():
+def list_connections():
     session_data = click.get_current_context().obj['session_data']
     resp = requests.get(
         f'{session_data["protocol"]}://{session_data["host"]}/get-connection-info',
@@ -164,6 +166,33 @@ def messages(connection_id):
         click.echo(resp.content)
 
 @freme.command()
+@click.option('--host', prompt='Host to connect to')
+@click.option('--email', prompt='Your email')
+@click.option('--display-name', prompt='Name to display to others')
+@click.option('--handle', prompt='Short name to reference you by (think username)')
+@click.password_option(confirmation_prompt=False)
+@click.option('--protocol', default='https')
+def signup(host, email, display_name, handle, password, protocol):
+    resp = requests.post(
+        f'{protocol}://{host}/signup',
+        data={
+            'email': email, 'name': display_name, 'handle': handle,
+            'password': password
+        }
+    )
+    if resp.status_code == 200:
+        session_data = {
+            'host': host,
+            'protocol': protocol,
+            'session': resp.cookies['session']
+        }
+        with open('/tmp/.freme', 'w') as f:
+            f.write(json.dumps(session_data))
+        click.echo('Signup successful and user is logged in')
+    else:
+        click.echo(f'Signup failed {resp.status_code}')
+
+@freme.command()
 @click.argument('host')
 @click.argument('email')
 @click.password_option(confirmation_prompt=False)
@@ -181,9 +210,9 @@ def login(host, email, password, protocol):
         }
         with open('/tmp/.freme', 'w') as f:
             f.write(json.dumps(session_data))
-        click.echo('Login successful')
+        click.echo('login successful')
     else:
-        click.echo(f'Login failed {resp.status_code}')
+        click.echo(f'login failed {resp.status_code}')
         click.echo(resp.content)
 
 @freme.command()
@@ -196,9 +225,9 @@ def logout():
     )
     if resp.status_code == 200:
         os.remove('/tmp/.freme')
-        click.echo('Logged out')
+        click.echo('logged out')
     else:
-        click.echo(f'Failed to log out {resp.status_code}')
+        click.echo(f'failed to log out {resp.status_code}')
 
 if __name__ == '__main__':
     freme()
