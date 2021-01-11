@@ -129,7 +129,7 @@ def request(handle, host):
     resp = requests.post(
         f'{session_data["protocol"]}://{session_data["host"]}/request-connection',
         cookies=dict(session=session_data['session']),
-        data={'host': host, 'handle': handle}
+        json={'host': host, 'handle': handle}
     )
     if resp.status_code == 200:
         click.echo('connection request succeeded')

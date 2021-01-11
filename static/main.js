@@ -150,10 +150,12 @@ $(function() {
       associated with userIdToken */
       method: 'POST',
       headers: getHeaders(),
-      data: {
-        'handle': handle,
-        'host': host
-      }
+      data: JSON.stringify({
+        "handle": handle,
+        "host": host
+      }),
+      contentType: 'application/json; charset=utf-8',
+      dataType: 'json'
     }).then(function(data){
       console.log(data);
     });

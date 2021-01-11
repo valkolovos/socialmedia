@@ -234,11 +234,12 @@ def request_connection(user_id):
     Drops a request on the queue that will call out to other user's server to
     request access
     '''
+    json_data = request.get_json()
     payload = {
         'user_host': request.host,
         'user_key': session['user']['id'],
-        'host': request.form['host'],
-        'handle': request.form['handle']
+        'host': json_data['host'],
+        'handle': json_data['handle']
     }
     task_manager.queue_task(payload, 'request-connection', url_for('queue_workers.request_connection'))
     return 'connection requested', 200

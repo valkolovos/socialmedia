@@ -107,7 +107,7 @@ Returns JSON message
 ### Manage Connection
 `/manage-connection` - POST
 
-*Required Logged In User*
+*Requires Logged In User*
 
 Performs multiple functions depending on the action - `acknowledge`, `decline` or `delete`. Actions `acknowledge` and `decline` are used to perform the requested action for a pending connection. The `delete` action deletes an existing connection.
 
@@ -121,4 +121,19 @@ Request: JSON with the following form
 
 Returns `{action} completed`
 
+### Request Connection
+`/requestion-connection` - POST
 
+*Requires Logged In User*
+
+Requests a new connection be established with handle / hostname.
+
+Request: JSON with the following form
+```
+{
+  "host": connection's host
+  "handle": connection's handle
+}
+```
+
+Returns `connection requested`
