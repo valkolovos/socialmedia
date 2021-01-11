@@ -103,3 +103,22 @@ Returns JSON message
   "text": Text of message
 }
 ```
+
+### Manage Connection
+`/manage-connection` - POST
+
+*Required Logged In User*
+
+Performs multiple functions depending on the action - `acknowledge`, `decline` or `delete`. Actions `acknowledge` and `decline` are used to perform the requested action for a pending connection. The `delete` action deletes an existing connection.
+
+Request: JSON with the following form
+```
+{
+  "connection_id": connection id to act on,
+  "action": acknowledge, decline or delete
+}
+```
+
+Returns `{action} completed`
+
+

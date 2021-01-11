@@ -60,7 +60,9 @@ def home():
 @blueprint.route('/validate-session')
 @verify_user
 def validate_session(user_id):
-    return 'valid', 200
+    return jsonify({
+        'email': session['authenticated_user']['email']
+    })
 
 @blueprint.route('/sign-out')
 def sign_out():
@@ -196,8 +198,9 @@ def manage_connection(user_id):
     '''
     current_user = session['user']
     crypto_key = get_user_key()
+    json_data = request.get_json()
     try:
-        connection_id = int(request.form['connection_id'])
+        connection_id = int(json_data['connection_id'])
     except:
         return 'Invalid connection_id', 400
     user_key = datastore_client.key('Profile', current_user['id'])
@@ -207,7 +210,7 @@ def manage_connection(user_id):
     connection = datastore_client.get(connection_key)
     if not connection:
         return 'No connection found for connectionId {}'.format(connectionId), 404
-    if request.form['action'] == 'connect':
+    if json_data['action'] == 'connect':
         # send acknowledgement - put message on ack-connection queue
         payload = {
             'user_host': request.host,
@@ -215,14 +218,14 @@ def manage_connection(user_id):
             'connection_id': connection_id,
         }
         task_manager.queue_task(payload, 'ack-connection', url_for('queue_workers.ack_connection'))
-    elif request.form['action'] == 'delete':
+    elif json_data['action'] == 'delete':
         datastore_client.delete(connection.key)
-    elif request.form['action'] == 'decline':
+    elif json_data['action'] == 'decline':
         connection.update({
             'status': connection_status.DECLINED,
         })
         datastore_client.put(connection)
-    return '{} completed'.format(request.form['action']), 200
+    return '{} completed'.format(json_data['action']), 200
 
 @blueprint.route('/request-connection', methods=['POST'])
 @verify_user

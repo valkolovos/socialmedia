@@ -10,7 +10,7 @@ You'll need to have a [Google Cloud](https://cloud.google.com) account and the `
 
 # Install
 You'll need to ensure you've cloned this repo and that you're logged in to Google Cloud with the credentials you used to set up your account:
-`gcloud login auth`
+`gcloud auth login`
 
 You'll also probably want to have a python3 virtual environment set up:
 `python3 -m venv venv`

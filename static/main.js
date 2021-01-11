@@ -114,10 +114,12 @@ $(function() {
       associated with userIdToken */
       method: 'POST',
       headers: getHeaders(),
-      data: {
-        'connection_id': connectionId,
-        'action': 'connect'
-      }
+      data: JSON.stringify({
+        "connection_id": connectionId,
+        "action": "connect"
+      }),
+      contentType: 'application/json; charset=utf-8',
+      dataType: 'json'
     }).then(function(data){
       getConnectionInfo();
       console.log(data);
@@ -130,10 +132,12 @@ $(function() {
       associated with userIdToken */
       method: 'POST',
       headers: getHeaders(),
-      data: {
-        'connection_id': connectionId,
-        'action': 'decline'
-      }
+      data: JSON.stringify({
+        "connection_id": connectionId,
+        "action": 'decline'
+      }),
+      contentType: 'application/json; charset=utf-8',
+      dataType: 'json'
     }).then(function(data){
       getConnectionInfo();
       console.log(data);

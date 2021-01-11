@@ -10,12 +10,17 @@ if [[ -z $REGION ]]; then
 fi
 
 QUEUES="message-created message-notify ack-connection request-connection comment-created"
+# create project
 gcloud projects create ${PROJECT_NAME} --name="Social Media" --quiet
 gcloud config set project ${PROJECT_NAME}
+beta_installed=$(gcloud components list 2>&1|grep "gcloud Beta Commands")
+if [[ -z $beta_installed ]]; then
+  gcloud components install beta
+fi
+gcloud services enable cloudbilling.googleapis.com
 BILLING_ACCOUNT=$(gcloud beta billing accounts list --format=config|grep name|cut -d' ' -f3|cut -d'/' -f2)
 gcloud beta billing projects link ${PROJECT_NAME} --billing-account $BILLING_ACCOUNT
 gcloud services enable cloudbuild.googleapis.com
-gcloud services enable cloudbilling.googleapis.com
 gcloud services enable cloudtasks.googleapis.com
 gcloud app create --region=$REGION --quiet
 gcloud iam service-accounts keys create service-account-creds.json --iam-account ${PROJECT_NAME}@appspot.gserviceaccount.com

@@ -20,6 +20,7 @@ def is_logged_in(func):
                 ctx = click.get_current_context()
                 ctx.ensure_object(dict)
                 ctx.obj['session_data'] = session_data
+                ctx.obj['current_user'] = json.loads(resp.content)['email']
                 return func(*args, **kwargs)
         except (FileNotFoundError, KeyError):
             pass
@@ -143,7 +144,7 @@ def acknowledge(connection_id):
     resp = requests.post(
         f'{session_data["protocol"]}://{session_data["host"]}/manage-connection',
         cookies=dict(session=session_data['session']),
-        data={'action': 'connect', 'connection_id': connection_id}
+        json={'action': 'connect', 'connection_id': connection_id}
     )
     if resp.status_code == 200:
         click.echo('connection acknowledged')
@@ -228,6 +229,11 @@ def logout():
         click.echo('logged out')
     else:
         click.echo(f'failed to log out {resp.status_code}')
+
+@freme.command()
+@is_logged_in
+def whoami():
+    click.echo(click.get_current_context().obj['current_user'])
 
 if __name__ == '__main__':
     freme()
