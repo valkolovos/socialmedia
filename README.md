@@ -8,6 +8,8 @@ You'll need to have python3.8 or higher installed.
 
 You'll need to have a [Google Cloud](https://cloud.google.com) account and the `gcloud` command-line tool - [installation instructions](https://cloud.google.com/sdk/docs/install).
 
+You'll also need to have an active billing account, which will require a credit card. Add and activate a billing account through the [Google Cloud Console](https://console.cloud.google.com) using the Billing menu option. Google Cloud currently provides a free trial with $300 credit.
+
 # Install
 You'll need to ensure you've cloned this repo and that you're logged in to Google Cloud with the credentials you used to set up your account:
 `gcloud login auth`
