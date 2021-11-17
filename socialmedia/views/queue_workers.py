@@ -91,7 +91,7 @@ def request_connection(request_data):
         payload should be JSON
         {
             'request_host': 'host of requesting user',
-            'user_key': 'user key for datastore',
+            'user_key': 'user key for datastore (profile id)',
             'host': 'host where connection lives',
             'handle': 'handle of connection'
         }
