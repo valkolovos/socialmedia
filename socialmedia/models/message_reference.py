@@ -10,18 +10,17 @@ class MessageReference():
         self.created = kwargs.get('created', datetime.now().astimezone(tz.UTC))
 
     def __str__(self):
-        connection_handle = self.connection.handle if self.connection else ''
-        return f'connection: {connection_handle}, read: {self.read}'
+        return f'connection: {{ {str(self.connection)} }}, message_id: {self.message_id}, '\
+            f'read: {self.read}, created: {self.created}'
 
     def __repr__(self):
-        connection_handle = self.connection.handle if self.connection else ''
-        return f'connection: {connection_handle}, read: {self.read}'
+        return f'MessageReference(connection: {{ {repr(self.connection)} }}, ' \
+            f'message_id: {self.message_id}, read: {self.read}, created: {self.created})'
 
     def __eq__(self, other):
         return all([
+            type(other) == type(self),
             hasattr(other, 'connection') and self.connection == other.connection,
-            hasattr(other, 'message_id') and self.object_id == other.object_id,
-            hasattr(other, 'read') and self.read == other.read,
-            hasattr(other, 'created') and self.created == other.created,
+            hasattr(other, 'message_id') and self.message_id == other.message_id,
         ])
 

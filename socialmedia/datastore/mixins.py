@@ -1,4 +1,4 @@
-from socialmedia.dataclient import datastore_client
+from .dataclient import datastore_client
 
 class DatastoreBase:
     def save(self):

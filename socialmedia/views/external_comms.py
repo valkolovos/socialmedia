@@ -12,7 +12,6 @@ from flask.json import JSONEncoder
 from sortedcontainers import SortedList
 
 from socialmedia import connection_status
-from socialmedia.utils import generate_signed_urls
 from socialmedia.views.validation_decorators import (
     json_request,
     validate_request,

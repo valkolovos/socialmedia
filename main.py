@@ -1,8 +1,8 @@
 import os
 
 from socialmedia import create_app, datastore as gcloud_datastore
-from socialmedia.gcs_object_stream_upload import custom_stream_factory
-from socialmedia.utils import generate_signed_urls, TaskManager
+from socialmedia.gcloud.gcs_object_stream_upload import custom_stream_factory
+from socialmedia.gcloud.utils import generate_signed_urls, TaskManager
 
 from google.cloud import datastore
 

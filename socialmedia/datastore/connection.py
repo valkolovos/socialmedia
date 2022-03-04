@@ -1,7 +1,7 @@
 from google.cloud import datastore
 
 from .profile import Profile
-from socialmedia.dataclient import datastore_client
+from .dataclient import datastore_client
 from socialmedia.models import Connection as BaseConnection
 from socialmedia.datastore.mixins import DatastoreGetMixin, DatastoreBase
 

@@ -16,12 +16,12 @@ class Comment():
         self.files = kwargs.get('files', [])
 
     def __str__(self):
-        profile_name = self.profile.handle if self.profile else ''
-        return f'profile: {profile_name}, text: {self.text}, created: {self.created}'
+        return f'id: {self.id}, message_id: {self.message_id}, profile: {{ {str(self.profile)} }}, ' \
+                f'text: {self.text}, files: {self.files}, created: {self.created}'
 
     def __repr__(self):
-        profile_name = self.profile.handle if self.profile else ''
-        return f'profile: {profile_name}, text: {self.text}, created: {self.created}'
+        return f'Comment(id: {self.id}, message_id: {self.message_id}, profile: {{ {repr(self.profile)} }}, ' \
+                f'text: {self.text}, files: {self.files}, created: {self.created})'
 
     def __eq__(self, other):
         return all([
@@ -29,6 +29,9 @@ class Comment():
             hasattr(other, 'id') and self.id == other.id,
             hasattr(other, 'text') and self.text == other.text,
             hasattr(other, 'message_id') and self.message_id == other.message_id,
+            hasattr(other, 'created') and self.created == other.created,
+            hasattr(other, 'files') and len(self.files) == len(other.files) and \
+                all(self.files[i] == other.files[i] for i in range(len(self.files))),
         ])
 
     def as_json(self):

@@ -19,12 +19,10 @@ import asyncio
 import json
 import os
 import requests
-import uuid
 from werkzeug import formparser
 from werkzeug.utils import secure_filename
 
 from socialmedia import connection_status
-from socialmedia.gcs_object_stream_upload import GCSObjectStreamUpload
 from socialmedia.views.utils import (
     enc_and_sign_payload,
     decrypt_payload

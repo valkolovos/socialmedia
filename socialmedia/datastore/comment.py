@@ -1,6 +1,6 @@
 from google.cloud import datastore
 
-from socialmedia.dataclient import datastore_client
+from .dataclient import datastore_client
 from socialmedia.models import Comment  as BaseComment
 from socialmedia.datastore.mixins import DatastoreGetMixin, DatastoreBase
 
