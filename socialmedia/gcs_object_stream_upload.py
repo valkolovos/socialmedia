@@ -3,6 +3,23 @@ from google.auth.transport.requests import AuthorizedSession
 from google.resumable_media import requests, common
 from google.cloud import storage
 
+from werkzeug.utils import secure_filename
+
+def custom_stream_factory(
+    total_content_length, filename, content_type, content_length=None
+):
+    storage_client = storage.Client()
+    filename = secure_filename(filename)
+    upload_stream = GCSObjectStreamUpload(
+        client=storage_client,
+        bucket_name='{}.appspot.com'.format(storage_client.project),
+        blob_name=filename,
+        content_type=content_type,
+    )
+    #print("start receiving file ... filename {} => google storage".format(filename))
+    upload_stream.start()
+    return upload_stream
+
 class GCSObjectStreamUpload():
     def __init__(
             self,
@@ -21,7 +38,7 @@ class GCSObjectStreamUpload():
         self._buffer_size = 0
         self._chunk_size = chunk_size
         self._read = 0
-        self.saved_filename = blob_name
+        self.filename = blob_name
 
         self._transport = AuthorizedSession(
             credentials=self._client._credentials

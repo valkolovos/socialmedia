@@ -21,3 +21,6 @@ venv
 README
 cli
 **/*.pyc
+test
+**/*\,cover
+htmlcov

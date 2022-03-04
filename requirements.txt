@@ -9,3 +9,5 @@ google-cloud-storage==1.35.0
 google-python-cloud-debugger
 sortedcontainers==2.3.0
 dateparser==1.0.0
+pytest==6.2.5
+ptest-cov==3.0.0

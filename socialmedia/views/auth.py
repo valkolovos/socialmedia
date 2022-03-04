@@ -2,20 +2,13 @@ import os
 
 from uuid import uuid4
 from Crypto.Hash import SHA256
-from flask import Blueprint, render_template, request, redirect, session, url_for
+from flask import current_app, Blueprint, render_template, request, redirect, session, url_for
 from flask_login import login_user, logout_user, UserMixin
-from google.cloud import datastore
 
 from socialmedia import connection_status
 from socialmedia.views.utils import create_profile
-from socialmedia.dataclient import datastore_client
-from socialmedia.utils import TaskManager
 
 auth = Blueprint('auth', __name__)
-task_manager = TaskManager(
-    datastore_client.project, 'us-west2',
-    os.environ.get('ASYNC_TASKS', 'true').lower() == 'true'
-)
 
 @auth.route('/login', methods=['GET'])
 def login():
@@ -32,9 +25,12 @@ def login_api():
     user = _get_user(request.form['email'], request.form['password'])
     if not user:
         return f'User {request.form["email"]} not found or invalid password', 401
-    profile = _get_profile(user['id'])
-    session['user'] = profile
-    login_user(User(user['id']))
+    profile = _get_profile(user.id)
+    if not user.admin:
+        if not _check_admin_connection(profile):
+            return 'Request to join still pending', 401
+    session['user'] = profile.as_json()
+    login_user(FlaskUser(user.id))
     return 'User logged in', 200
 
 @auth.route('/login', methods=['POST'])
@@ -57,25 +53,13 @@ def login_post():
             error='Error logging in',
             **request.form
         )
-    profile = _get_profile(user['id'])
-    if not user['admin']:
-        # check for active admin user connection
-        query = datastore_client.query(kind='User')
-        query.add_filter('admin', '=', True)
-        admin_users = list(query.fetch(limit=1))
-        admin_profile = _get_profile(admin_users[0]['id'])
-        # checking for connection FROM admin TO user
-        # the other way around might not correctly be in sync
-        query = datastore_client.query(kind='Connection')
-        query.ancestor=admin_profile.key
-        query.add_filter('host', '=', request.host)
-        query.add_filter('handle', '=', profile['handle'])
-        connections = list(query.fetch(limit=1))
-        if not connections or connections[0]['status'] != connection_status.CONNECTED:
+    profile = _get_profile(user.id)
+    if not user.admin:
+        if not _check_admin_connection(profile):
             return 'Request to join still pending', 401
 
-    session['user'] = profile
-    login_user(User(user['id']), remember=True)
+    session['user'] = profile.as_json()
+    login_user(FlaskUser(user.id), remember=True)
     return redirect(url_for('main.home'))
 
 @auth.route('/signup', methods=['GET'])
@@ -98,10 +82,8 @@ def signup_post():
     password = request.form['password']
 
     # check to see if user already exists
-    query = datastore_client.query(kind='User')
-    query.add_filter('email', '=', email)
-    users = list(query.fetch(limit=1))
-    if users:
+    existing_user = current_app.datamodels.User.get(email=email)
+    if existing_user:
         # intentionally returning vague message
         # to avoid email validation
         return render_template(
@@ -110,53 +92,57 @@ def signup_post():
             form_errors={},
             **request.form
         )
-    h = SHA256.new()
-    h.update(bytes(password, 'utf-8'))
-    enc_passwd = h.hexdigest()
-    key = datastore_client.key('User')
-    user = datastore.Entity(key=key)
-    user_id = str(uuid4())
 
-    user_data = {
-        'id': user_id,
-        'email': request.form['email'],
-        'password': enc_passwd,
-        'admin': False,
-    }
+    # check to see if profile with handle already exists
+    existing_profile = current_app.datamodels.Profile.get(handle=request.form['handle'])
+    if existing_profile:
+        # intentionally returning vague message
+        # to avoid email validation
+        return render_template(
+            'sign_up.html',
+            error='Unable to add user',
+            form_errors={},
+            **request.form
+        )
+
+    user = current_app.datamodels.User(
+        id=current_app.datamodels.User.generate_uuid(),
+        email=request.form['email'],
+        admin=False
+    )
+    user.set_password(password)
 
     # check to see if there is an admin user
-    query = datastore_client.query(kind='User')
-    query.add_filter('admin', '=', True)
-    admin_users = list(query.fetch(limit=1))
-    if not admin_users:
+    admin_user = current_app.datamodels.User.get(
+        admin=True
+    )
+    if not admin_user:
         # first user added is going to be admin
-        user_data['admin'] = True
+        user.admin = True
 
-    user.update(user_data)
-    datastore_client.put(user)
-    profile = create_profile(user_id, request.form['name'], request.form['handle'])
+    user.save()
+    profile = create_profile(user.id, request.form['name'], request.form['handle'])
 
     # if this is not an admin user, request a connection to the admin user
     # an established connection with the admin user allows the new user access
-    if admin_users:
+    if not user.admin:
         # get admin user profile
-        query = datastore_client.query(kind='Profile')
-        query.add_filter('user_id', '=', admin_users[0]['id'])
-        admin_profiles = list(query.fetch(limit=1))
+        admin_profile = current_app.datamodels.Profile.get(
+            user_id=admin_user.id
+        )
         payload = {
             'user_host': request.host,
-            'user_key': profile.id,
+            'user_key': profile.user_id,
             'host': request.host,
-            'handle': admin_profiles[0]['handle']
+            'handle': admin_profile.handle
         }
-        task_manager.queue_task(
+        current_app.task_manager.queue_task(
             payload, 'request-connection', url_for('queue_workers.request_connection')
         )
         return 'Request to join pending', 401
 
-    login_user(User(user_id), remember=True)
-    profile['id'] = profile.id
-    session['user'] = profile
+    login_user(FlaskUser(user.id), remember=True)
+    session['user'] = profile.as_json()
     return redirect(url_for('main.home'))
 
 @auth.route('/logout')
@@ -166,41 +152,49 @@ def logout():
     return 'Logout'
 
 def _get_user(email, password):
-    h = SHA256.new()
-    h.update(bytes(password, 'utf-8'))
-    enc_passwd = h.hexdigest()
-    query = datastore_client.query(kind='User')
-    query.add_filter('email', '=', email)
-    query.add_filter('password', '=', enc_passwd)
-    users = list(query.fetch(limit=1))
-    if users:
-        return users[0]
-    return None
+    enc_passwd = current_app.datamodels.User.enc_password(password)
+    return current_app.datamodels.User.get(
+        email=email,
+        password=enc_passwd
+    )
 
 def _get_profile(user_id):
-    query = datastore_client.query(kind='Profile')
-    query.add_filter('user_id', '=', user_id)
-    profiles = list(query.fetch(limit=1))
-    if not profiles:
+    user_profile = current_app.datamodels.Profile.get(
+        user_id=user_id
+    )
+    if not user_profile:
         raise Exception('User without profile found')
-    # removing private_key from user object in session
-    profiles[0]['private_key'] = None
-    # adding id to use for key creation later
-    profiles[0]['id'] = profiles[0].id
-    return profiles[0]
-
+    user_profile.private_key = None
+    return user_profile
 
 def load_user(user_id):
     user = session.get('authenticated_user')
     if not user:
-        query = datastore_client.query(kind='User')
-        query.add_filter('id', '=', user_id)
-        users = list(query.fetch(limit=1))
-        if users:
-            user = users[0]
-            session['authenticated_user'] = user
-    return User(user['id'])
+        user = current_app.datamodels.User.get(id=user_id)
+        if user:
+            session['authenticated_user'] = user.as_json()
+    return FlaskUser(user_id)
 
-class User(UserMixin):
+def _check_admin_connection(profile):
+    # check for active admin user connection
+    admin_user = current_app.datamodels.User.get(
+        admin=True
+    )
+    if not admin_user:
+        print('no admin user exists')
+        return False
+    admin_profile = _get_profile(admin_user.id)
+    # checking for connection FROM admin TO user
+    # the other way around might not correctly be in sync
+    connection = current_app.datamodels.Connection.get(
+        profile=admin_profile,
+        host=request.host,
+        handle=profile.handle
+    )
+    if not connection or connection.status != connection_status.CONNECTED:
+        return False
+    return True
+
+class FlaskUser(UserMixin):
     def __init__(self, id):
         self.id = id

@@ -1,9 +1,8 @@
 import functools
 import json
 
-from flask import request
+from flask import current_app, request
 
-from socialmedia.dataclient import datastore_client
 from socialmedia.views.utils import decrypt_payload, verify_signature
 
 def json_request(func=None):
@@ -46,12 +45,10 @@ def validate_handle(func=None):
     @functools.wraps(func)
     def _validate_handle(*args, **kwargs):
         # verify handle exists
-        query = datastore_client.query(kind='Profile')
-        query.add_filter('handle', '=', kwargs['request_data']['handle'])
-        query_results = list(query.fetch(limit=1))
-        if not query_results:
+        connectee = current_app.datamodels.Profile.get(handle=kwargs['request_data']['handle'])
+        if not connectee:
             return 'No such handle', 404
-        kwargs['connectee'] = query_results[0]
+        kwargs['connectee'] = connectee
         return func(*args, **kwargs)
     return _validate_handle
 
@@ -95,15 +92,15 @@ def validate_connection(func=None, host_key='host', handle_key='handle'):
     @functools.wraps(func)
     def _validate_connection(*args, **kwargs):
         # check connection status
-        query = datastore_client.query(kind='Connection')
-        query.ancestor = kwargs['connectee'].key
-        query.add_filter('status', '=', 'connected')
-        query.add_filter('handle', '=', kwargs['request_payload'][handle_key])
-        query.add_filter('host', '=', kwargs['request_payload'][host_key])
-        query_results = list(query.fetch(limit=1))
-        if not query_results:
+        connection = current_app.datamodels.Connection.get(
+            profile=kwargs['connectee'],
+            status='connected',
+            handle=kwargs['request_payload'][handle_key],
+            host=kwargs['request_payload'][host_key]
+        )
+        if not connection:
             return 'No connection found', 404
-        requestor = kwargs['requestor'] = query_results[0]
+        requestor = kwargs['requestor'] = connection
         # verify signature
         if not verify_signature(
             requestor, kwargs['request_data']['signature'],

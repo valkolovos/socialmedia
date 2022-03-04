@@ -7,14 +7,12 @@ import requests
 from collections import defaultdict
 from datetime import datetime
 from dateutil import tz
-from flask import Blueprint, jsonify, request, url_for
+from flask import Blueprint, current_app, jsonify, request, url_for
 from flask.json import JSONEncoder
-from google.cloud import datastore
 from sortedcontainers import SortedList
 
-from socialmedia import connection_status, notification_type
-from socialmedia.dataclient import datastore_client
-from socialmedia.utils import generate_signed_url
+from socialmedia import connection_status
+from socialmedia.utils import generate_signed_urls
 from socialmedia.views.validation_decorators import (
     json_request,
     validate_request,
@@ -65,19 +63,15 @@ def request_connection(request_data, connectee):
         )
     ):
         return 'Invalid request - missing required fields', 400
-    ds_key = datastore_client.key('Connection', parent=connectee.key)
-    connection = datastore.Entity(key=ds_key, exclude_from_indexes=('public_key',))
-    now = datetime.now().astimezone(tz.UTC)
-    connection.update({
-        'host': request_payload['requestor_host'],
-        'handle': request_payload['requestor_handle'],
-        'display_name': request_payload['requestor_display_name'],
-        'public_key': request_payload['requestor_public_key'],
-        'status': connection_status.PENDING,
-        'created': now,
-        'updated': now,
-    })
-    datastore_client.put(connection)
+    connection = current_app.datamodels.Connection(
+        profile=connectee,
+        host=request_payload['requestor_host'],
+        handle=request_payload['requestor_handle'],
+        display_name=request_payload['requestor_display_name'],
+        public_key=request_payload['requestor_public_key'],
+        status=connection_status.PENDING,
+    )
+    connection.save()
     return 'Request completed', 200
 
 @blueprint.route('/acknowledge-connection', methods=['POST'])
@@ -99,25 +93,21 @@ def ack_connection(request_data, connectee, request_payload):
           'ack_public_key': 'acknowledger public key',
         }
     '''
-    query = datastore_client.query(kind='Connection')
-    query.ancestor = connectee.key
-    query.add_filter('handle', '=', request_payload['ack_handle'])
-    query.add_filter('host', '=', request_payload['ack_host'])
-    query_results = list(query.fetch(limit=1))
-    if not query_results:
+    connection = current_app.datamodels.Connection.get(
+        handle = request_payload['ack_handle'],
+        host = request_payload['ack_host'],
+        profile = connectee
+    )
+    if not connection:
         return 'No connection found', 404
-    connection = query_results[0]
-    if connection['status'] == connection_status.CONNECTED:
+    if connection.status == connection_status.CONNECTED:
         return 'Already connected', 200
-    connection['public_key'] = request_payload['ack_public_key']
     now = datetime.now().astimezone(tz.UTC)
-    connection.update({
-        'display_name': request_payload['ack_display_name'],
-        'public_key': request_payload['ack_public_key'],
-        'status': connection_status.CONNECTED,
-        'updated': now,
-    })
-    datastore_client.put(connection)
+    connection.display_name = request_payload['ack_display_name']
+    connection.public_key = request_payload['ack_public_key']
+    connection.status =connection_status.CONNECTED
+    connection.updated = now
+    connection.save()
     return 'Request completed', 200
 
 @blueprint.route('/retrieve-messages', methods=['POST'])
@@ -135,50 +125,45 @@ def retrieve_messages(request_data, connectee, request_payload, requestor):
         }
         returns messages
     '''
-    query = datastore_client.query(kind='Message', ancestor=connectee.key)
-    messages = list(query.fetch())
+    messages = current_app.datamodels.Message.list(profile=connectee)
     # probably could be pretty significantly optimized in some way
 
-    commentors = defaultdict(lambda: defaultdict(set))
+    commentors = defaultdict(set)
+    all_commentors = []
     messages_response = {}
     for message in messages:
-        query = datastore_client.query(kind='Notification', ancestor=message.key)
-        for notification in query.fetch():
-           metadata = notification['metadata']
-           commentors[metadata['comment_host']][metadata['comment_handle']].add(message['id'])
-        if message.get('files'):
-            message['files'] = [
-                generate_signed_url(
-                    '{}.appspot.com'.format(datastore_client.project),
-                    f,
-                ) for f in message['files']
-            ]
-        message['comments'] = SortedList(
-            key=lambda x: -(dateparser.parse(x['created']).timestamp())
-        )
-        messages_response[message['id']] = message
+        for comment_reference in current_app.datamodels.CommentReference.list(
+            message_id=message.id
+        ):
+           commentors[comment_reference.connection.id].add(message.id)
+           all_commentors.append(comment_reference.connection)
+        if message.files:
+            message.files = current_app.url_signer(message.files)
+        messages_response[message.id] = message.as_json()
+        messages_response[message.id]['comments'] = []
 
-    async def get_comments(host, handle, message_ids):
+    async def get_comments(connection, message_ids):
         request_payload = {
           'host': request.host,
-          'handle': connectee['handle'],
+          'handle': connectee.handle,
           'message_ids': message_ids,
         }
-        # user is connectee and connection is requestor
+        # enc_and_sign_payload(profile, connection. request_payload)
+        # profile is connectee and connection is requestor
         enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
             connectee, requestor, request_payload
         )
         protocol = 'https'
-        if host == 'localhost:8080':
+        if connection.host == 'localhost:8080':
             protocol = 'http'
-        request_url = f'{protocol}://{host}{url_for("external_comms.retrieve_comments")}'
+        request_url = f'{protocol}://{connection.host}{url_for("external_comms.retrieve_comments")}'
         payload = {
             'enc_payload': enc_payload,
             'enc_key': enc_key,
             'signature': signature,
             'nonce': nonce,
             'tag': tag,
-            'handle': handle,
+            'handle': connection.handle,
         }
         # send request to connection's host
         response = requests.post(
@@ -195,9 +180,7 @@ def retrieve_messages(request_data, connectee, request_payload, requestor):
                 response_data['tag'],
             )
             for comment in response_payload:
-                comment['host'] = host
-                comment['handle'] = handle
-                messages_response[comment['message_id']]['comments'].add(comment)
+                messages_response[comment['message_id']]['comments'].append(comment)
         else:
             print(f'Unable to retrieve comments {response.status_code}')
             print(response.headers)
@@ -205,9 +188,8 @@ def retrieve_messages(request_data, connectee, request_payload, requestor):
 
     async def collect_comments():
         gather = asyncio.gather()
-        for host in commentors.keys():
-            for handle, message_ids in commentors[host].items():
-                asyncio.gather(get_comments(host, handle, list(message_ids)))
+        for commentor in all_commentors:
+            asyncio.gather(get_comments(commentor, list(commentors[commentor.id])))
         await gather
 
     asyncio.run(collect_comments())
@@ -219,7 +201,7 @@ def retrieve_messages(request_data, connectee, request_payload, requestor):
             return JSONEncoder.default(None, o)
 
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
-        connectee, requestor, messages, json_default=sorted_list_encoder
+        connectee, requestor, [m for m in messages_response.values()], json_default=sorted_list_encoder
     )
     return jsonify(
         enc_payload=enc_payload,
@@ -249,21 +231,11 @@ def message_notify(request_data, connectee, request_payload, requestor):
           'message_id': 'id of new message',
         }
     '''
-    ds_key = datastore_client.key('Notification', parent=requestor.key)
-    notification = datastore.Entity(key=ds_key)
-    now = datetime.now().astimezone(tz.UTC)
-    notification.update({
-        'type': notification_type.MESSAGE,
-        'id': request_payload['message_id'],
-        'created': now,
-        'read': None,
-        'metadata': {
-            'message_id': request_payload['message_id'],
-            'message_host': request_payload['message_host'],
-            'message_handle': request_payload['message_handle'],
-        }
-    })
-    datastore_client.put(notification)
+    message_reference = current_app.datamodels.MessageReference(
+        connection=requestor,
+        message_id=request_payload['message_id'],
+    )
+    message_reference.save()
     return '', 200
 
 @blueprint.route('/comment-created', methods=['POST'])
@@ -286,31 +258,15 @@ def comment_created(request_data, connectee, request_payload, requestor):
           'comment_id': 'id of comment'
         }
     '''
-    # verify signature
-    if not verify_signature(requestor, request_data['signature'], request_payload):
-        return 'Invalid request - signature does not match', 400
     # verify message exists
-    query = datastore_client.query(kind='Message')
-    query.ancestor = connectee.key
-    query.add_filter('id', '=', request_payload['message_id'])
-    query_results = list(query.fetch(limit=1))
-    if not query_results:
-        return 'No message found', 404
-    message = query_results[0]
-    ds_key = datastore_client.key('Notification', parent=message.key)
-    notification = datastore.Entity(key=ds_key)
-    now = datetime.now().astimezone(tz.UTC)
-    notification.update({
-        'type': notification_type.COMMENT_CREATED,
-        'id': request_payload['comment_id'],
-        'created': now,
-        'read': True,
-        'metadata': {
-            'comment_host': request_payload['comment_host'],
-            'comment_handle': request_payload['comment_handle']
-        }
-    })
-    datastore_client.put(notification)
+    message = current_app.datamodels.Message.get(id=request_payload['message_id'])
+    if not message:
+        return f'No message found for id {request_payload["message_id"]}', 404
+    comment_reference = current_app.datamodels.CommentReference(
+        connection=requestor,
+        message_id=request_payload['message_id'],
+    )
+    comment_reference.save()
     return '', 200
 
 @blueprint.route('/retrieve-comments', methods=['POST'])
@@ -334,9 +290,10 @@ def retrieve_comments(request_data, connectee, request_payload, requestor):
     '''
     all_comments = []
     for msg_id in request_payload['message_ids']:
-        query = datastore_client.query(kind='Comment', ancestor=connectee.key)
-        query.add_filter('message_id', '=', msg_id)
-        all_comments.extend(list(query.fetch()))
+        comments = current_app.datamodels.Comment.list(message_id=msg_id)
+        for comment in comments:
+            comment.files = current_app.url_signer(comment.files)
+        all_comments.extend([c.as_json() for c in comments])
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
         connectee, requestor, all_comments
     )

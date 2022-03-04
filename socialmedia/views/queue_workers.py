@@ -6,12 +6,9 @@ from datetime import datetime
 import requests
 
 from dateutil import tz
-from flask import Blueprint, request, url_for
-from google.cloud import datastore
+from flask import current_app, Blueprint, request, url_for
 
 from socialmedia import connection_status
-from socialmedia.dataclient import datastore_client
-from socialmedia.utils import TaskManager
 from socialmedia.views.validation_decorators import (
     json_request,
     validate_request,
@@ -19,11 +16,6 @@ from socialmedia.views.validation_decorators import (
 from socialmedia.views.utils import enc_and_sign_payload
 
 blueprint = Blueprint('queue_workers', __name__)
-
-task_manager = TaskManager(
-    datastore_client.project, 'us-west2',
-    os.environ.get('ASYNC_TASKS', 'true').lower() == 'true'
-)
 
 @blueprint.route('/ack-connection', methods=['POST'])
 @json_request
@@ -38,29 +30,27 @@ def ack_connection(request_data):
             'connection_id': connection_id
         }
     '''
-    user_key = datastore_client.key('Profile', request_data['user_key'])
-    user = datastore_client.get(user_key)
-    connection_key = datastore_client.key(
-        'Profile', user.id, 'Connection', request_data['connection_id']
+    profile = current_app.datamodels.Profile.get(user_id=request_data['user_key'])
+    connection = current_app.datamodels.Connection.get(
+        profile=profile, id=request_data['connection_id']
     )
-    connection = datastore_client.get(connection_key)
     if not connection:
-        return 404, 'No connection {} found for user {}'.format(
-                request_data['connection_id'], user['display_name']
-            )
+        return 'No connection {} found for user {}'.format(
+                request_data['connection_id'], profile.handle
+            ), 404
     request_payload = {
       'ack_host': request_data['user_host'],
-      'ack_handle': user['handle'],
-      'ack_display_name': user['display_name'],
-      'ack_public_key': user['public_key'].decode(),
+      'ack_handle': profile.handle,
+      'ack_display_name': profile.display_name,
+      'ack_public_key': profile.public_key.decode(),
     }
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
-        user, connection, request_payload
+        profile, connection, request_payload
     )
     protocol = 'https'
-    if connection['host'] == 'localhost:8080':
+    if connection.host == 'localhost:8080':
         protocol = 'http'
-    request_url = f'{protocol}://{connection["host"]}{url_for("external_comms.ack_connection")}'
+    request_url = f'{protocol}://{connection.host}{url_for("external_comms.ack_connection")}'
     # send request to connection's host
     response = requests.post(
         request_url,
@@ -70,15 +60,16 @@ def ack_connection(request_data):
             'signature': signature,
             'nonce': nonce,
             'tag': tag,
-            'handle': connection['handle'],
+            'handle': connection.handle,
         }
     )
-    if response.status_code == 200:
-        connection.update({
-            'status': connection_status.CONNECTED,
-            'updated': datetime.now().astimezone(tz.UTC),
-        })
-        datastore_client.put(connection)
+    if response.status_code != 200:
+        print(f'Failed to ack requested connection {connection.handle}@{connection.host}')
+        return 'Failed to ack requested connection', response.status_code
+
+    connection.status = connection_status.CONNECTED
+    connection.updated = datetime.now().astimezone(tz.UTC)
+    connection.save()
     return 'Connection requested', 200
 
 @blueprint.route('/request-connection', methods=['POST'])
@@ -90,20 +81,19 @@ def request_connection(request_data):
     ''' Requests a connection with another user
         payload should be JSON
         {
-            'request_host': 'host of requesting user',
+            'user_host': 'host of requesting user',
             'user_key': 'user key for datastore (profile id)',
             'host': 'host where connection lives',
             'handle': 'handle of connection'
         }
     '''
-    user_key = datastore_client.key('Profile', request_data['user_key'])
-    # get full user from datastore
-    user = datastore_client.get(user_key)
+    # get full profile from datastore
+    profile = current_app.datamodels.Profile.get(user_id=request_data['user_key'])
     request_payload = {
       'requestor_host': request_data['user_host'],
-      'requestor_handle': user['handle'],
-      'requestor_display_name': user['display_name'],
-      'requestor_public_key': user['public_key'].decode(),
+      'requestor_handle': profile.handle,
+      'requestor_display_name': profile.display_name,
+      'requestor_public_key': profile.public_key.decode(),
     }
     protocol = 'https'
     if request_data['host'] == 'localhost:8080':
@@ -121,17 +111,13 @@ def request_connection(request_data):
     if response.status_code == 200:
         # store pending connection - the rest of the connection will get populated
         # when the acknowledgement comes back
-        ds_key = datastore_client.key('Connection', parent=user.key)
-        connection = datastore.Entity(key=ds_key, exclude_from_indexes=('public_key', ))
-        now = datetime.now().astimezone(tz.UTC)
-        connection.update({
-            'host': request_data['host'],
-            'handle': request_data['handle'],
-            'status': connection_status.REQUESTED,
-            'created': now,
-            'updated': now,
-        })
-        datastore_client.put(connection)
+        connection = current_app.datamodels.Connection(
+            profile=profile,
+            host=request_data['host'],
+            handle=request_data['handle'],
+            status=connection_status.REQUESTED,
+        )
+        connection.save()
     else:
         print('QueueWorker: requestConnection failed - {}'.format(
             response.content
@@ -150,23 +136,22 @@ def message_created(request_data):
             'message_id': 'message id'
         }
     '''
-    query = datastore_client.query(kind='Message')
-    query.add_filter('id', '=', request_data['message_id'])
-    messages = list(query.fetch(limit=1))
-    if messages:
-        query = datastore_client.query(kind='Connection', ancestor=messages[0].key.parent)
-        query.add_filter('status', '=', connection_status.CONNECTED)
-        for connection in query.fetch():
-            payload = {
-                'user_key': messages[0].key.parent.id,
-                'message_id': request_data['message_id'],
-                'connection_key': connection.id,
-            }
-            task_manager.queue_task(
-                payload,
-                'message-notify',
-                url_for('queue_workers.message_notify')
-            )
+    message = current_app.datamodels.Message.get(id=request_data['message_id'])
+    if not message:
+        print(f'message {request_data["message_id"]} not found')
+        return f'message {request_data["message_id"]} not found', 404
+    connections = current_app.datamodels.Connection.list(profile=message.profile)
+    for connection in connections:
+        payload = {
+            'user_key': message.profile.user_id,
+            'message_id': request_data['message_id'],
+            'connection_key': connection.id,
+        }
+        current_app.task_manager.queue_task(
+            payload,
+            'message-notify',
+            url_for('queue_workers.message_notify')
+        )
     return 'Notification tasks created', 200
 
 @blueprint.route('/message-notify', methods=['POST'])
@@ -186,27 +171,19 @@ def message_notify(request_data):
             'connection_key': 'connection key', # connection to notify
         }
     '''
-    user_key = datastore_client.key('Profile', request_data['user_key'])
-    # get full user from datastore
-    user = datastore_client.get(user_key)
-    connection_key = datastore_client.key(
-        'Connection',
-        request_data['connection_key'],
-        parent=user_key
-    )
-    connection = datastore_client.get(connection_key)
+    connection = current_app.datamodels.Connection.get(id=request_data['connection_key'])
     request_payload = {
       'message_host': request.host,
-      'message_handle': user['handle'],
+      'message_handle': connection.profile.handle,
       'message_id': request_data['message_id'],
     }
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
-        user, connection, request_payload
+        connection.profile, connection, request_payload
     )
     protocol = 'https'
-    if connection['host'] == 'localhost:8080':
+    if connection.host == 'localhost:8080':
         protocol = 'http'
-    request_url = f'{protocol}://{connection["host"]}{url_for("external_comms.message_notify")}'
+    request_url = f'{protocol}://{connection.host}{url_for("external_comms.message_notify")}'
     # send request to connection's host
     response = requests.post(
         request_url,
@@ -216,7 +193,7 @@ def message_notify(request_data):
             'signature': signature,
             'nonce': nonce,
             'tag': tag,
-            'handle': connection['handle'],
+            'handle': connection.handle,
         }
     )
     if response.status_code != 200:
@@ -225,7 +202,7 @@ def message_notify(request_data):
             'Message notify failed {}:{}'.format(response.status_code, response.content),
             response.status_code
         )
-    return 'Connection {}@{} notified'.format(connection['handle'], connection['host']), 200
+    return 'Connection {}@{} notified'.format(connection.handle, connection.host), 200
 
 @blueprint.route('/comment-created', methods=['POST'])
 @json_request
@@ -247,24 +224,24 @@ def comment_created(request_data):
             'connection_key': 'connection key', # connection to notify
         }
     '''
-    user_key = datastore_client.key('Profile', request_data['user_key'])
-    # get full user from datastore
-    user = datastore_client.get(user_key)
-    connection_key = datastore_client.key('Connection', request_data['connection_key'], parent=user_key)
-    connection = datastore_client.get(connection_key)
+    profile = current_app.datamodels.Profile.get(user_id=request_data['user_key'])
+    connection = current_app.datamodels.Connection.get(
+        profile=profile,
+        id=request_data['connection_key'],
+    )
     request_payload = {
       'comment_host': request_data['user_host'],
-      'comment_handle': user['handle'],
+      'comment_handle': profile.handle,
       'message_id': request_data['message_id'],
       'comment_id': request_data['comment_id'],
     }
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
-        user, connection, request_payload
+        profile, connection, request_payload
     )
     protocol = 'https'
-    if connection['host'] == 'localhost:8080':
+    if connection.host == 'localhost:8080':
         protocol = 'http'
-    request_url = f'{protocol}://{connection["host"]}{url_for("external_comms.comment_created")}'
+    request_url = f'{protocol}://{connection.host}{url_for("external_comms.comment_created")}'
     # send request to connection's host
     response = requests.post(
         request_url,
@@ -274,7 +251,7 @@ def comment_created(request_data):
             'signature': signature,
             'nonce': nonce,
             'tag': tag,
-            'handle': connection['handle'],
+            'handle': connection.handle,
         }
     )
     if response.status_code != 200:
@@ -284,8 +261,8 @@ def comment_created(request_data):
             response.status_code
         )
     return 'Connection {}@{} notified of comment {} on message {}'.format(
-        connection['handle'],
-        connection['host'],
+        connection.handle,
+        connection.host,
         request_data['message_id'],
         request_data['comment_id']
     ), 200
