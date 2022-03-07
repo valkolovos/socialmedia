@@ -32,11 +32,6 @@ from socialmedia.views.auth_decorators import verify_user, login_required
 
 blueprint = Blueprint('main', __name__)
 
-def get_user_key():
-    _current_user = current_app.datamodels.Profile.get_by_id(session['user']['id'])
-    crypto_key = RSA.importKey(_current_user.private_key)
-    return crypto_key
-
 @blueprint.route('/')
 @login_required
 def home():

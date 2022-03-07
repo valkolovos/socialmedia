@@ -2,6 +2,8 @@ from datetime import datetime
 from dateutil import tz
 from uuid import uuid4
 
+from socialmedia import connection_status
+
 class Connection():
 
     def __init__(self, **kwargs):
@@ -15,24 +17,31 @@ class Connection():
         self.status = kwargs.get('status')
         self.created = kwargs.get('created', now)
         self.updated = kwargs.get('updated', now)
+        if self.status not in connection_status.ALL:
+            raise Exception(f'Connection status must be one of [{", ".join(connection_status.ALL)}]')
 
     @classmethod
     def generate_uuid(cls):
         return str(uuid4())
 
     def __str__(self):
-        profile_name = self.profile.handle if self.profile else ''
-        return f'profile: {profile_name}, host: {self.host}, handle: {self.handle}, status: {self.status}'
+        return f'id: {self.id}, profile: {{ {self.profile} }}, host: {self.host}, handle: {self.handle}, ' \
+            f'status: {self.status}, created: {self.created}, updated: {self.updated}'
 
     def __repr__(self):
-        profile_name = self.profile.handle if self.profile else ''
-        return f'profile: {profile_name}, host: {self.host}, handle: {self.handle}, status: {self.status}'
+        return f'Connection(id: {self.id}, profile: {{ {self.profile} }}, host: {self.host}, ' \
+            f'handle: {self.handle}, status: {self.status}, public_key: {self.public_key}, ' \
+            f'created: {self.created}, updated: {self.updated})'
 
     def __eq__(self, other):
         return all([
+            type(other) == type(self),
+            hasattr(other, 'id') and self.id == other.id,
             hasattr(other, 'profile') and self.profile == other.profile,
             hasattr(other, 'host') and self.host == other.host,
             hasattr(other, 'handle') and self.handle == other.handle,
+            hasattr(other, 'display_name') and self.display_name == other.display_name,
+            hasattr(other, 'public_key') and self.public_key == other.public_key,
             hasattr(other, 'status') and self.status == other.status,
             hasattr(other, 'created') and self.created == other.created,
             hasattr(other, 'updated') and self.updated == other.updated,
@@ -41,6 +50,7 @@ class Connection():
     def as_json(self):
         return {
             'id': self.id,
+            'profile': self.profile.as_json(),
             'host': self.host,
             'handle': self.handle,
             'display_name': self.display_name,

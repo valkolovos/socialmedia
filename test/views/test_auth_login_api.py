@@ -11,33 +11,33 @@ def test_login_api(client):
         id=1,
     )
     testUser.set_password('reallyStrongPassword')
+    testUser.save()
     adminUser = datamodels.User(
         email='admin@example.com',
         id=2,
         admin=True,
     )
     adminUser.set_password('reallyStrongPassword')
+    adminUser.save()
     testProfile = datamodels.Profile(
         display_name='Test User',
         handle='test_handle',
         user_id=1,
     )
+    testProfile.save()
     adminProfile = datamodels.Profile(
         display_name='Admin User',
         handle='admin_handle',
         user_id=2,
     )
+    adminProfile.save()
     adminConnection = datamodels.Connection(
         profile=adminProfile,
         host='localhost',
         handle='test_handle',
         status=connection_status.CONNECTED,
     )
-    datamodels.User.add_data(testUser)
-    datamodels.User.add_data(adminUser)
-    datamodels.Profile.add_data(testProfile)
-    datamodels.Profile.add_data(adminProfile)
-    datamodels.Connection.add_data(adminConnection)
+    adminConnection.save()
     result = client.post('/login-api', data={
         'email': 'gooduser@example.com',
         'password': 'reallyStrongPassword',
@@ -55,6 +55,21 @@ def test_login_api_no_user(client):
     assert result.status_code == 401
     assert result.data == b'User notfounduser@example.com not found or invalid password'
 
+def test_login_api_no_profile(client):
+    adminUser = datamodels.User(
+        email='admin@example.com',
+        id=2,
+        admin=True,
+    )
+    adminUser.set_password('reallyStrongPassword')
+    adminUser.save()
+    result = client.post('/login-api', data={
+        'email': 'admin@example.com',
+        'password': 'reallyStrongPassword',
+    })
+    # user with no profile is a failure
+    assert result.status_code == 500
+
 def test_login_api_missing_form_values(client):
     ''' Tests login without required form values fails and returns appropriate messaging. '''
     result = client.post('/login-api')
@@ -68,7 +83,7 @@ def test_login_api_bad_password(client):
         id=1,
     )
     testUser.set_password('reallyStrongPassword')
-    datamodels.User.add_data(testUser)
+    testUser.save()
     result = client.post('/login-api', data={
         'email': 'gooduser@example.com',
         'password': 'badPassword',
@@ -83,33 +98,33 @@ def test_login_api_admin_not_connected(client):
         id=1,
     )
     testUser.set_password('reallyStrongPassword')
+    testUser.save()
     adminUser = datamodels.User(
         email='admin@example.com',
         id=2,
         admin=True,
     )
     adminUser.set_password('reallyStrongPassword')
+    adminUser.save()
     testProfile = datamodels.Profile(
         display_name='Test User',
         handle='test_handle',
         user_id=1,
     )
+    testProfile.save()
     adminProfile = datamodels.Profile(
         display_name='Admin User',
         handle='admin_handle',
         user_id=2,
     )
+    adminProfile.save()
     adminConnection = datamodels.Connection(
         profile=adminProfile,
         host='localhost',
         handle='test_handle',
         status=connection_status.PENDING,
     )
-    datamodels.User.add_data(testUser)
-    datamodels.User.add_data(adminUser)
-    datamodels.Profile.add_data(testProfile)
-    datamodels.Profile.add_data(adminProfile)
-    datamodels.Connection.add_data(adminConnection)
+    adminConnection.save()
     result = client.post('/login-api', data={
         'email': 'gooduser@example.com',
         'password': 'reallyStrongPassword',
@@ -125,13 +140,13 @@ def test_login_api_admin(client):
         admin=True,
     )
     adminUser.set_password('reallyStrongPassword')
+    adminUser.save()
     adminProfile = datamodels.Profile(
         display_name='Admin User',
         handle='admin_handle',
         user_id=2,
     )
-    datamodels.User.add_data(adminUser)
-    datamodels.Profile.add_data(adminProfile)
+    adminProfile.save()
     result = client.post('/login-api', data={
         'email': 'admin@example.com',
         'password': 'reallyStrongPassword',
@@ -139,4 +154,25 @@ def test_login_api_admin(client):
     assert result.status_code == 200
     assert result.data == b'User logged in'
     assert session['user'] == adminProfile.as_json()
+
+def test_login_api_no_admin(client):
+    ''' Tests that valid user without valid connection to admin fails and returns appropriate messaging. '''
+    testUser = datamodels.User(
+        email='gooduser@example.com',
+        id=1,
+    )
+    testUser.set_password('reallyStrongPassword')
+    testUser.save()
+    testProfile = datamodels.Profile(
+        display_name='Test User',
+        handle='test_handle',
+        user_id=1,
+    )
+    testProfile.save()
+    result = client.post('/login-api', data={
+        'email': 'gooduser@example.com',
+        'password': 'reallyStrongPassword',
+    })
+    assert result.status_code == 401
+    assert result.data == b'Request to join still pending'
 

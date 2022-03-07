@@ -173,6 +173,8 @@ def load_user(user_id):
         user = current_app.datamodels.User.get(id=user_id)
         if user:
             session['authenticated_user'] = user.as_json()
+        else:
+            return None
     return FlaskUser(user_id)
 
 def _check_admin_connection(profile):

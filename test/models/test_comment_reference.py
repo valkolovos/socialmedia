@@ -1,10 +1,12 @@
 from datetime import datetime
+from socialmedia import connection_status
 from socialmedia.models import CommentReference, Connection, MessageReference
 
 def test_constructor():
     comment_reference = CommentReference(
         connection=Connection(
             host='abc.xyz',
+            status=connection_status.CONNECTED,
         ),
         message_id='message_id',
         read=False,
@@ -18,6 +20,7 @@ def test_str():
     comment_reference = CommentReference(
         connection=Connection(
             host='abc.xyz',
+            status=connection_status.CONNECTED,
         ),
         message_id='message_id',
         read=False,
@@ -31,6 +34,7 @@ def test_repr():
     comment_reference = CommentReference(
         connection=Connection(
             host='abc.xyz',
+            status=connection_status.CONNECTED,
         ),
         message_id='message_id',
         read=False,
@@ -44,6 +48,7 @@ def test_eq():
     comment_reference_one = CommentReference(
         connection=Connection(
             host='abc.xyz',
+            status=connection_status.CONNECTED,
         ),
         message_id='message_id',
         read=False,
@@ -52,6 +57,7 @@ def test_eq():
         connection=Connection(
             id=comment_reference_one.connection.id,
             host='abc.xyz',
+            status=connection_status.CONNECTED,
             created=comment_reference_one.connection.created,
             updated=comment_reference_one.connection.updated,
         ),
@@ -67,6 +73,7 @@ def test_not_eq():
     comment_reference_one = CommentReference(
         connection=Connection(
             host='abc.xyz',
+            status=connection_status.CONNECTED,
         ),
         message_id='message_id',
         read=False,
@@ -75,6 +82,7 @@ def test_not_eq():
         connection=Connection(
             id=comment_reference_one.connection.id,
             host='abc.xyz',
+            status=connection_status.CONNECTED,
             created=comment_reference_one.connection.created,
             updated=comment_reference_one.connection.updated,
         ),
@@ -88,6 +96,7 @@ def test_message_reference_not_comment_reference():
     comment_reference = CommentReference(
         connection=Connection(
             host='abc.xyz',
+            status=connection_status.CONNECTED,
         ),
         message_id='message_id',
         read=False,
@@ -96,6 +105,7 @@ def test_message_reference_not_comment_reference():
         connection=Connection(
             id=comment_reference.connection.id,
             host='abc.xyz',
+            status=connection_status.CONNECTED,
             created=comment_reference.connection.created,
             updated=comment_reference.connection.updated,
         ),

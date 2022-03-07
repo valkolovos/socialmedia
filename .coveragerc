@@ -1,0 +1,7 @@
+[run]
+branch = True
+source =
+    socialmedia/
+omit =
+    socialmedia/datastore/*
+    socialmedia/gcloud/*

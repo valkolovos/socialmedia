@@ -22,17 +22,22 @@ class Message():
         )
 
     def __str__(self):
-        profile_name = self.profile.handle if self.profile else ''
-        return f'profile: {profile_name}, text: {self.text}, created: {self.created}'
+        return f'id: {self.id}, profile: {{ {self.profile} }}, text: {self.text}, ' \
+            f'files: {self.files}, created: {self.created}, has_comments: {len(self.comments) > 0}'
 
     def __repr__(self):
-        profile_name = self.profile.handle if self.profile else ''
-        return f'profile: {profile_name}, text: {self.text}, created: {self.created}'
+        return f'Message(id: {self.id}, profile: {{ {self.profile} }}, text: {self.text}, ' \
+            f'files: {self.files}, created: {self.created}, comments: {self.comments})'
 
     def __eq__(self, other):
         return all([
+            type(other) == type(self),
             hasattr(other, 'profile') and self.profile == other.profile,
-            hasattr(other, 'id') and self.id == other.id
+            hasattr(other, 'id') and self.id == other.id,
+            hasattr(other, 'text') and self.text == other.text,
+            hasattr(other, 'created') and self.created == other.created,
+            hasattr(other, 'files') and len(self.files) == len(other.files) and \
+                all(self.files[i] == other.files[i] for i in range(len(self.files))),
         ])
 
     def as_json(self):
@@ -42,6 +47,7 @@ class Message():
             'text': self.text,
             'created': str(self.created),
             'files': self.files,
+            'comments': [comment.as_json() for comment in self.comments]
         }
 
     @classmethod
