@@ -1,5 +1,7 @@
 import pytest
 
+from flask import _request_ctx_stack
+
 from unittest.mock import Mock
 
 from socialmedia import create_app
@@ -19,5 +21,3 @@ def client():
         yield client
     # clean up test data
     BaseTestModel._data = []
-
-

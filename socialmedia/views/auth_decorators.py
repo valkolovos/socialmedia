@@ -1,6 +1,6 @@
 import functools
 
-from flask import request, session, current_app
+from flask import current_app, request, Response, session
 from flask_login import current_user
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -39,7 +39,7 @@ def verify_user(func):
         try:
             auth_user_id = auth_func()
         except UnauthorizedException:
-            return 'Unauthorized', 401
+            return Response(response='Unauthorized', status=401, headers={"Access-Control-Allow-Origin": "*"})
         kwargs['user_id'] = auth_user_id
         return func(*args, **kwargs)
     return verify_wrapper

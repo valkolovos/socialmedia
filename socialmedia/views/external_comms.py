@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import dateparser
 import json
@@ -8,8 +7,6 @@ from collections import defaultdict
 from datetime import datetime
 from dateutil import tz
 from flask import Blueprint, current_app, jsonify, request, url_for
-from flask.json import JSONEncoder
-from sortedcontainers import SortedList
 
 from socialmedia import connection_status, models
 from socialmedia.views.validation_decorators import (
@@ -22,7 +19,7 @@ from socialmedia.views.validation_decorators import (
 from socialmedia.views.utils import (
     decrypt_payload,
     enc_and_sign_payload,
-    verify_signature,
+    get_message_comments,
 )
 
 
@@ -127,97 +124,16 @@ def retrieve_messages(request_data, connectee, request_payload, requestor):
     messages = current_app.datamodels.Message.list(profile=connectee)
     # probably could be pretty significantly optimized in some way
 
-    commentors = defaultdict(list)
-    # cheap hack to create a set of commentors by using the ids as keys
-    all_commentors = {}
-    # message_dict to be able to look up messages by id later
-    message_dict = {}
+    comment_references = defaultdict(list)
     for message in messages:
-        message_dict[message.id] = message
         for comment_reference in current_app.datamodels.CommentReference.list(
             message_id=message.id
         ):
-           commentors[comment_reference.connection.id].append(message)
-           all_commentors[comment_reference.connection.id] = comment_reference.connection
+            comment_references[message.id].append(comment_reference)
         if message.files:
             message.files = current_app.url_signer(message.files)
 
-    async def get_comments(connection, messages):
-        request_payload = {
-          'host': request.host,
-          'handle': connectee.handle,
-          'message_ids': [m.id for m in messages],
-        }
-        # enc_and_sign_payload(profile, connection. request_payload)
-        # profile is connectee and connection is requestor
-        enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
-            connectee, connection, request_payload
-        )
-        protocol = 'https'
-        if connection.host == 'localhost:8080':
-            protocol = 'http'
-        request_url = f'{protocol}://{connection.host}{url_for("external_comms.retrieve_comments")}'
-        payload = {
-            'enc_payload': enc_payload,
-            'enc_key': enc_key,
-            'signature': signature,
-            'nonce': nonce,
-            'tag': tag,
-            'handle': connection.handle,
-        }
-        # send request to connection's host
-        response = requests.post(
-            request_url,
-            json=payload,
-        )
-        if response.status_code == 200:
-            response_data = json.loads(response.content)
-            response_payload = decrypt_payload(
-                connectee,
-                response_data['enc_key'],
-                response_data['enc_payload'],
-                response_data['nonce'],
-                response_data['tag'],
-            )
-            for comment_json in response_payload:
-                comment = models.Comment(
-                    profile=models.Profile(
-                        handle=comment_json['profile']['handle'],
-                        display_name=comment_json['profile']['display_name'],
-                        public_key=comment_json['profile']['public_key'],
-                        user_id=comment_json['profile']['user_id'],
-                    ),
-                    message_id=comment_json['message_id'],
-                    text=comment_json['text'],
-                    files=comment_json['files'],
-                    created=dateparser.parse(
-                        comment_json['created'], settings={'TIMEZONE': 'UTC'}
-                    ),
-                )
-                message_dict[comment.message_id].comments.add(comment)
-        else:
-            for message in messages:
-                message_dict[message.id].comments.add(
-                    models.Comment(
-                        profile=models.Profile(
-                            handle=connection.handle,
-                            display_name=connection.display_name,
-                        ),
-                        text='error retrieving comments',
-                        message_id=message.id,
-                    )
-                )
-            print(f'Unable to retrieve comments {response.status_code}')
-            print(response.headers)
-            print(response.content)
-
-    async def collect_comments():
-        gather = asyncio.gather()
-        for commentor in all_commentors.values():
-            asyncio.gather(get_comments(commentor, commentors[commentor.id]))
-        await gather
-
-    asyncio.run(collect_comments())
+    get_message_comments(messages, comment_references, request.host)
 
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
         connectee, requestor, [m.as_json() for m in messages]

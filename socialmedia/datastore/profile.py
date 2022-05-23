@@ -1,24 +1,25 @@
 from google.cloud import datastore
 
-from .dataclient import datastore_client
 from socialmedia.models import Profile as BaseProfile
-from socialmedia.datastore.mixins import DatastoreGetMixin, DatastoreBase
+from socialmedia.datastore.mixins import DatastoreBase
 
-class Profile(BaseProfile, DatastoreBase, DatastoreGetMixin):
+from .dataclient import datastore_client
+
+class Profile(BaseProfile, DatastoreBase):
 
     kind = 'Profile'
 
     def save(self):
         if not hasattr(self, 'key'):
-            key = datastore_client.key('Profile')
+            key = datastore_client.key('Profile', self.user_id)
+            setattr(self, 'key', key)
         else:
-            key = self.key
+            key = getattr(self, 'key')
         profile_entity = datastore.Entity(
             key=key, exclude_from_indexes=('public_key', 'private_key')
         )
         profile_entity.update(self.as_dict())
         datastore_client.put(profile_entity)
-        self.datastore_id = profile_entity.id
 
     def as_dict(self):
         return {
@@ -29,4 +30,3 @@ class Profile(BaseProfile, DatastoreBase, DatastoreGetMixin):
             'private_key': self.private_key,
             'created': self.created,
         }
-

@@ -1,10 +1,11 @@
 from datetime import datetime
+
 from dateutil import tz
-from uuid import uuid4
 
 from socialmedia import connection_status
+from .uuid_mixin import UuidMixin
 
-class Connection():
+class Connection(UuidMixin):
 
     def __init__(self, **kwargs):
         now = datetime.now().astimezone(tz.UTC)
@@ -20,10 +21,6 @@ class Connection():
         if self.status not in connection_status.ALL:
             raise Exception(f'Connection status must be one of [{", ".join(connection_status.ALL)}]')
 
-    @classmethod
-    def generate_uuid(cls):
-        return str(uuid4())
-
     def __str__(self):
         return f'id: {self.id}, profile: {{ {self.profile} }}, host: {self.host}, handle: {self.handle}, ' \
             f'status: {self.status}, created: {self.created}, updated: {self.updated}'
@@ -35,7 +32,7 @@ class Connection():
 
     def __eq__(self, other):
         return all([
-            type(other) == type(self),
+            isinstance(other, self.__class__),
             hasattr(other, 'id') and self.id == other.id,
             hasattr(other, 'profile') and self.profile == other.profile,
             hasattr(other, 'host') and self.host == other.host,

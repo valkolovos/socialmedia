@@ -1,7 +1,6 @@
 import json
 
 from flask import url_for
-from unittest import mock
 
 from socialmedia import connection_status
 from test import datamodels

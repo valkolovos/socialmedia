@@ -5,7 +5,7 @@ from google.cloud import storage
 
 from werkzeug.utils import secure_filename
 
-def custom_stream_factory(
+def gcs_stream_factory(
     total_content_length, filename, content_type, content_length=None
 ):
     storage_client = storage.Client()

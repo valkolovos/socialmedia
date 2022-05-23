@@ -19,8 +19,7 @@ class MessageReference():
 
     def __eq__(self, other):
         return all([
-            type(other) == type(self),
+            isinstance(other, self.__class__),
             hasattr(other, 'connection') and self.connection == other.connection,
             hasattr(other, 'message_id') and self.message_id == other.message_id,
         ])
-

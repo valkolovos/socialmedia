@@ -1,23 +1,18 @@
 from collections import defaultdict
-from Crypto.PublicKey import RSA
 from datetime import datetime
 from dateutil import tz
 from flask import (
     current_app,
     Blueprint,
     jsonify,
-    make_response,
-    render_template,
     request,
     session,
     url_for,
 )
-from flask.json import dumps
-from flask_login import current_user, logout_user
+from flask_login import logout_user
 
 import asyncio
 import json
-import os
 import requests
 from werkzeug import formparser
 from werkzeug.utils import secure_filename
@@ -25,23 +20,22 @@ from werkzeug.utils import secure_filename
 from socialmedia import connection_status
 from socialmedia.views.utils import (
     enc_and_sign_payload,
-    decrypt_payload
+    decrypt_payload,
+    get_message_comments,
 )
-from socialmedia.views.auth_decorators import verify_user, login_required
+from socialmedia.views.auth_decorators import verify_user
 
 
 blueprint = Blueprint('main', __name__)
 
-@blueprint.route('/')
-@login_required
-def home():
-    context = {"user": session['user']}
-    return render_template('index.html', context=context)
+@blueprint.route('/validate-session', methods=['OPTIONS'])
+def handle_validate_options():
+    return '', 200
 
 @blueprint.route('/validate-session')
 @verify_user
 def validate_session(user_id):
-    return 'valid', 200
+    return session['user'], 200
 
 @blueprint.route('/sign-out')
 def sign_out():
@@ -54,10 +48,15 @@ def sign_out():
 @verify_user
 def get_messages(user_id):
     current_profile = current_app.datamodels.Profile.get(user_id=session['user']['user_id'])
+    comment_references = defaultdict(list)
     messages = current_app.datamodels.Message.list(profile=current_profile, order=['-created'])
-    # probably could be pretty significantly optimized in some way
     for message in messages:
         message.files = current_app.url_signer(message.files)
+        for comment_reference in current_app.datamodels.CommentReference.list(
+            message_id=message.id
+        ):
+            comment_references[message.id].append(comment_reference)
+    get_message_comments(messages, comment_references, request.host)
     response = jsonify([m.as_json() for m in messages])
     return response
 
@@ -76,7 +75,7 @@ def get_connection_messages(user_id, connection_id):
         current_profile, connection, request_payload
     )
     protocol = 'https'
-    if connection.host == 'localhost:8080':
+    if connection.host == 'localhost:8080': # pragma: no cover
         protocol = 'http'
     request_url = f'{protocol}://{connection.host}{url_for("external_comms.retrieve_messages")}'
     response = requests.post(
@@ -230,10 +229,12 @@ def mark_message_read(user_id, message_id):
 def add_comment(user_id, message_id):
     current_profile = current_app.datamodels.Profile.get(user_id=session['user']['user_id'])
     stream,form,files = formparser.parse_form_data(request.environ, stream_factory=current_app.stream_factory)
-    connection_id = form['connectionId']
-    connection = current_app.datamodels.Connection.get(id=connection_id)
-    if not connection:
-        return f'Connection id ({connection_id}) not found', 404
+    connection = None
+    if not current_app.datamodels.Message.get(id=message_id, profile=current_profile):
+        connection_id = form['connectionId']
+        connection = current_app.datamodels.Connection.get(id=connection_id)
+        if not connection:
+            return f'Connection id ({connection_id}) not found', 404
     comment = current_app.datamodels.Comment(
         profile=current_profile,
         message_id=message_id,
@@ -242,13 +243,14 @@ def add_comment(user_id, message_id):
         files=[secure_filename(f.filename) for f in files.values()],
     )
     comment.save()
-    payload = {
-        'user_key': current_profile.user_id,
-        'user_host': request.host,
-        'message_id': message_id,
-        'comment_id': comment.id,
-        'connection_key': connection.id,
-    }
-    current_app.task_manager.queue_task(payload, 'comment-created', url_for('queue_workers.comment_created'))
+    if connection:
+        payload = {
+            'user_key': current_profile.user_id,
+            'user_host': request.host,
+            'message_id': message_id,
+            'comment_id': comment.id,
+            'connection_key': connection.id,
+        }
+        current_app.task_manager.queue_task(payload, 'comment-created', url_for('queue_workers.comment_created'))
     comment.files = current_app.url_signer(files)
     return jsonify(comment.as_json())

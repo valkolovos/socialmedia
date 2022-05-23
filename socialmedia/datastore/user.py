@@ -1,19 +1,20 @@
 from google.cloud import datastore
 
-from .dataclient import datastore_client
 from socialmedia.models import User as BaseUser
-from socialmedia.datastore.mixins import DatastoreGetMixin, DatastoreBase
+from socialmedia.datastore.mixins import DatastoreBase
 
-class User(BaseUser, DatastoreBase, DatastoreGetMixin):
+from .dataclient import datastore_client
+
+class User(BaseUser, DatastoreBase):
 
     kind = 'User'
 
     def save(self):
         if not hasattr(self,'key'):
-            key = datastore_client.key('User')
+            key = datastore_client.key('User', self.id)
+            setattr(self, 'key', key)
         else:
-            key = self.key
-        key = datastore_client.key('User')
+            key = getattr(self, 'key')
         user_entity = datastore.Entity(key=key)
         user_entity.update(self.as_dict())
         datastore_client.put(user_entity)

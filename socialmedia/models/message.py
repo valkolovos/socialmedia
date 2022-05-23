@@ -1,11 +1,11 @@
 from datetime import datetime
+
 from dateutil import tz
 from sortedcontainers import SortedList
-from uuid import uuid4
 
-from socialmedia.models.profile import Profile
+from .uuid_mixin import UuidMixin
 
-class Message():
+class Message(UuidMixin):
 
     def __init__(self, **kwargs):
         now = datetime.now().astimezone(tz.UTC)
@@ -30,13 +30,14 @@ class Message():
             f'files: {self.files}, created: {self.created}, comments: {self.comments})'
 
     def __eq__(self, other):
+        # pylint: disable=duplicate-code
         return all([
-            type(other) == type(self),
+            isinstance(other, self.__class__),
             hasattr(other, 'profile') and self.profile == other.profile,
             hasattr(other, 'id') and self.id == other.id,
             hasattr(other, 'text') and self.text == other.text,
             hasattr(other, 'created') and self.created == other.created,
-            hasattr(other, 'files') and len(self.files) == len(other.files) and \
+            hasattr(other, 'files') and len(self.files) == len(other.files) and
                 all(self.files[i] == other.files[i] for i in range(len(self.files))),
         ])
 
@@ -49,8 +50,3 @@ class Message():
             'files': self.files,
             'comments': [comment.as_json() for comment in self.comments]
         }
-
-    @classmethod
-    def generate_uuid(cls):
-        return str(uuid4())
-

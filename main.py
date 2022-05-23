@@ -1,7 +1,7 @@
 import os
 
 from socialmedia import create_app, datastore as gcloud_datastore
-from socialmedia.gcloud.gcs_object_stream_upload import custom_stream_factory
+from socialmedia.gcloud.gcs_object_stream_upload import gcs_stream_factory
 from socialmedia.gcloud.utils import generate_signed_urls, TaskManager
 
 from google.cloud import datastore
@@ -16,7 +16,7 @@ except ImportError:
 
 app = create_app(
     gcloud_datastore,
-    custom_stream_factory,
+    gcs_stream_factory,
     generate_signed_urls,
     TaskManager(
         datastore.Client().project, 'us-west2',

@@ -1,10 +1,10 @@
 from datetime import datetime
+
 from dateutil import tz
-from uuid import uuid4
 
-from socialmedia.models.profile import Profile
+from .uuid_mixin import UuidMixin
 
-class Comment():
+class Comment(UuidMixin):
 
     def __init__(self, **kwargs):
         now = datetime.now().astimezone(tz.UTC)
@@ -24,13 +24,14 @@ class Comment():
                 f'text: {self.text}, files: {self.files}, created: {self.created})'
 
     def __eq__(self, other):
+        # pylint: disable=duplicate-code
         return all([
             hasattr(other, 'profile') and self.profile == other.profile,
             hasattr(other, 'id') and self.id == other.id,
             hasattr(other, 'text') and self.text == other.text,
             hasattr(other, 'message_id') and self.message_id == other.message_id,
             hasattr(other, 'created') and self.created == other.created,
-            hasattr(other, 'files') and len(self.files) == len(other.files) and \
+            hasattr(other, 'files') and len(self.files) == len(other.files) and
                 all(self.files[i] == other.files[i] for i in range(len(self.files))),
         ])
 
@@ -43,9 +44,3 @@ class Comment():
             'created': str(self.created),
             'files': self.files,
         }
-
-    @classmethod
-    def generate_uuid(cls):
-        return str(uuid4())
-
-

@@ -1,6 +1,7 @@
+from datetime import datetime
+
 from Crypto import Random
 from Crypto.PublicKey import RSA
-from datetime import datetime
 from dateutil import tz
 
 class Profile():
@@ -12,10 +13,11 @@ class Profile():
         self.public_key = kwargs.get('public_key')
         self.private_key = kwargs.get('private_key')
         self.created = kwargs.get('created', now)
-        if not(any((self.public_key, self.private_key))):
+        if not any((self.public_key, self.private_key)):
             self.public_key, self.private_key = self.generate_keys()
 
-    def generate_keys(self):
+    @classmethod
+    def generate_keys(cls):
         random_generator = Random.new().read
         crypto_key = RSA.generate(2048, random_generator)
         return crypto_key.publickey().exportKey(), crypto_key.exportKey()
@@ -30,7 +32,7 @@ class Profile():
 
     def __eq__(self, other):
         return all([
-            type(other) == type(self),
+            isinstance(other, self.__class__),
             hasattr(other, 'display_name') and self.display_name == other.display_name,
             hasattr(other, 'handle') and self.handle == other.handle,
             hasattr(other, 'user_id') and self.user_id == other.user_id,
@@ -47,4 +49,3 @@ class Profile():
             'public_key': str(self.public_key),
             'created': str(self.created),
         }
-

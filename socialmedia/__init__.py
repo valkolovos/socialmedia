@@ -1,9 +1,10 @@
 import os
 
 from flask import Flask
+from flask_cors import CORS
 from flask_login import LoginManager
 
-from socialmedia.views.auth import auth, load_user
+from socialmedia.views.auth import auth, load_user, request_loader
 from socialmedia.views.main import blueprint as main
 from socialmedia.views.external_comms import blueprint as external_comms
 from socialmedia.views.queue_workers import blueprint as queue_workers
@@ -27,6 +28,7 @@ def create_app(model_datastore, stream_factory, url_signer, task_manager):
     login_manager.login_view = 'auth.login'
     login_manager.init_app(app)
     login_manager.user_loader(load_user)
+    login_manager.request_loader(request_loader)
 
     # use datastore for data management
     app.datamodels = model_datastore
@@ -35,5 +37,5 @@ def create_app(model_datastore, stream_factory, url_signer, task_manager):
     app.url_signer = url_signer
     app.task_manager = task_manager
 
+    CORS(app)
     return app
-

@@ -406,7 +406,7 @@ def test_retrieve_messages(client):
         requestor_profile, requestor_connection, request_payload
     )
     # send request to connection's host
-    with mock.patch('socialmedia.views.external_comms.requests') as req:
+    with mock.patch('socialmedia.views.utils.requests') as req:
         def side_effect(*args, **kwargs):
             json_payload = kwargs['json']
             if json_payload['handle'] == requestor_profile.handle:
@@ -592,7 +592,7 @@ def test_retrieve_messages_failed_comment_retrieval(client):
         requestor_profile, requestor_connection, request_payload
     )
     # send request to connection's host
-    with mock.patch('socialmedia.views.external_comms.requests') as req:
+    with mock.patch('socialmedia.views.utils.requests') as req:
         def side_effect(*args, **kwargs):
             json_payload = kwargs['json']
             if json_payload['handle'] == requestor_profile.handle:

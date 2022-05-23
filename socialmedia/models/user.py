@@ -1,7 +1,8 @@
-from uuid import uuid4
 from Crypto.Hash import SHA256
 
-class User:
+from .uuid_mixin import UuidMixin
+
+class User(UuidMixin):
     '''
     A user maintains basic authentication information - email, password, unique id
     '''
@@ -17,13 +18,9 @@ class User:
 
     @classmethod
     def enc_password(cls, password):
-        h = SHA256.new()
-        h.update(bytes(password, 'utf-8'))
-        return h.hexdigest()
-
-    @classmethod
-    def generate_uuid(cls):
-        return str(uuid4())
+        sha = SHA256.new()
+        sha.update(bytes(password, 'utf-8'))
+        return sha.hexdigest()
 
     def __str__(self):
         return f'id: {self.id}, email: {self.email}, admin: {self.admin}'
@@ -34,11 +31,10 @@ class User:
 
     def __eq__(self, other):
         return all([
-            type(other) == type(self),
+            isinstance(other, self.__class__),
             hasattr(other, 'id') and self.id == other.id,
             hasattr(other, 'email') and self.email == other.email,
             hasattr(other, 'admin') and self.admin == other.admin,
-            hasattr(other, 'password') and self.password == other.password,
         ])
 
     def as_json(self):
@@ -47,4 +43,3 @@ class User:
             'email': self.email,
             'admin': self.admin,
         }
-

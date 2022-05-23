@@ -69,7 +69,5 @@ def test_not_eq():
     )
     assert user_one != user_two
     user_two.email = user_one.email
-    user_one.set_password('password')
-    assert user_one != user_two
-    user_two.set_password('not the same')
+    user_one.admin = True
     assert user_one != user_two

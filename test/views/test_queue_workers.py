@@ -259,6 +259,14 @@ def test_message_created(client):
         url_for('queue_workers.message_notify')
     )
 
+def test_message_created_no_such_message(client):
+    response = client.post(url_for('queue_workers.message_created'), json={
+        'message_id': 'bogus',
+    })
+    assert response.status_code == 404
+    assert response.data == bytes(f'message bogus not found', encoding='utf-8')
+    assert client.application.task_manager.queue_task.call_count == 0
+
 def test_message_notify(client):
     user = datamodels.User(
         email='user@example.com',
@@ -311,6 +319,46 @@ def test_message_notify(client):
         assert request_payload['message_host'] == 'localhost'
         assert request_payload['message_handle'] == 'handle'
         assert request_payload['message_id'] == 'mock_message_id'
+
+def test_message_notify_failed(client):
+    user = datamodels.User(
+        email='user@example.com',
+        id=datamodels.User.generate_uuid(),
+    )
+    user.save()
+    profile = datamodels.Profile(
+        display_name='User',
+        handle='handle',
+        user_id=user.id,
+    )
+    profile.save()
+    other_user = datamodels.User(
+        email='other_user@otherhost.com',
+        id=datamodels.User.generate_uuid(),
+    )
+    other_profile = datamodels.Profile(
+        display_name='Other User',
+        handle='other_handle',
+        user_id=other_user.id,
+    )
+    connection = datamodels.Connection(
+        profile=profile,
+        host='other_host.com',
+        handle='other_handle',
+        display_name='Other Name',
+        status=connection_status.CONNECTED,
+        public_key=other_profile.public_key,
+    )
+    connection.save()
+    with mock.patch('socialmedia.views.queue_workers.requests') as req:
+        req.post.return_value = MockResponse(500, b'Oops')
+        response = client.post(url_for('queue_workers.message_notify'), json={
+            'user_key': user.id,
+            'message_id': 'mock_message_id',
+            'connection_key': connection.id,
+        })
+        assert response.status_code == 500
+        assert req.post.call_count == 1
 
 def test_comment_created(client):
     user = datamodels.User(

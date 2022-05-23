@@ -1,6 +1,5 @@
 import base64
 import json
-import os
 from datetime import datetime
 
 import requests
@@ -48,7 +47,7 @@ def ack_connection(request_data):
         profile, connection, request_payload
     )
     protocol = 'https'
-    if connection.host == 'localhost:8080':
+    if connection.host == 'localhost:8080': # pragma: no cover
         protocol = 'http'
     request_url = f'{protocol}://{connection.host}{url_for("external_comms.ack_connection")}'
     # send request to connection's host
@@ -96,7 +95,7 @@ def request_connection(request_data):
       'requestor_public_key': profile.public_key.decode(),
     }
     protocol = 'https'
-    if request_data['host'] == 'localhost:8080':
+    if request_data['host'] == 'localhost:8080': # pragma: no cover
         protocol = 'http'
     request_url = f'{protocol}://{request_data["host"]}{url_for("external_comms.request_connection")}'
     # send request to connection's host
@@ -181,7 +180,7 @@ def message_notify(request_data):
         connection.profile, connection, request_payload
     )
     protocol = 'https'
-    if connection.host == 'localhost:8080':
+    if connection.host == 'localhost:8080': # pragma: no cover
         protocol = 'http'
     request_url = f'{protocol}://{connection.host}{url_for("external_comms.message_notify")}'
     # send request to connection's host
@@ -239,7 +238,7 @@ def comment_created(request_data):
         profile, connection, request_payload
     )
     protocol = 'https'
-    if connection.host == 'localhost:8080':
+    if connection.host == 'localhost:8080': # pragma: no cover
         protocol = 'http'
     request_url = f'{protocol}://{connection.host}{url_for("external_comms.comment_created")}'
     # send request to connection's host

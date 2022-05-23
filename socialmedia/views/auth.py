@@ -1,18 +1,25 @@
 import os
+import traceback
 
-from uuid import uuid4
-from Crypto.Hash import SHA256
-from flask import current_app, Blueprint, render_template, request, redirect, session, url_for
-from flask_login import login_user, logout_user, UserMixin
+from datetime import datetime, timedelta
+
+import jwt
+from jwt import PyJWTError
+
+from flask import (
+    Blueprint,
+    current_app,
+    request,
+    redirect,
+    session,
+    url_for,
+)
+from flask_login import AnonymousUserMixin, AUTH_HEADER_NAME, login_user, logout_user, UserMixin
 
 from socialmedia import connection_status
 from socialmedia.views.utils import create_profile
 
 auth = Blueprint('auth', __name__)
-
-@auth.route('/login', methods=['GET'])
-def login():
-    return render_template('login.html', form_errors={})
 
 @auth.route('/login-api', methods=['POST'])
 def login_api():
@@ -21,7 +28,7 @@ def login_api():
         if not request.form.get(required_key):
             form_errors.append(f'{required_key} required')
     if form_errors:
-        return 'Missing required values {}'.format(', '.join(form_errors)), 400
+        return f'Missing required values {", ".join(form_errors)}', 400
     user = _get_user(request.form['email'], request.form['password'])
     if not user:
         return f'User {request.form["email"]} not found or invalid password', 401
@@ -31,79 +38,42 @@ def login_api():
             return 'Request to join still pending', 401
     session['user'] = profile.as_json()
     login_user(FlaskUser(user.id))
-    return 'User logged in', 200
+    now = datetime.utcnow()
+    expires = now + timedelta(hours=6)
+    token = jwt.encode(
+        {
+            'exp': datetime.utcnow() + timedelta(hours=6),
+            'iat': datetime.utcnow(),
+            'sub': user.id,
+        },
+        current_app.config.get('SECRET_KEY'),
+        algorithm="HS256"
+    )
+    return {
+        AUTH_HEADER_NAME: token,
+        'expires': expires.timestamp()
+    }, 200
 
-@auth.route('/login', methods=['POST'])
-def login_post():
-    form_errors = {}
-    for required_key in ('email', 'password'):
-        if not request.form.get(required_key):
-            form_errors[required_key] = f'{required_key} required'
-    if form_errors:
-        return render_template(
-            'login.html',
-            form_errors=form_errors,
-            **request.form
-        )
-    user = _get_user(request.form['email'], request.form['password'])
-    if not user:
-        return render_template(
-            'login.html',
-            form_errors={},
-            error='Error logging in',
-            **request.form
-        )
-    profile = _get_profile(user.id)
-    if not user.admin:
-        if not _check_admin_connection(profile):
-            return 'Request to join still pending', 401
-
-    session['user'] = profile.as_json()
-    login_user(FlaskUser(user.id), remember=True)
-    return redirect(url_for('main.home'))
-
-@auth.route('/signup', methods=['GET'])
-def signup():
-    return render_template('sign_up.html', form_errors={})
-
-@auth.route('/signup', methods=['POST'])
-def signup_post():
+@auth.route('/signup-api', methods=['POST'])
+def signup_api():
     form_errors = {}
     for required_key in ('email', 'password', 'name', 'handle'):
         if not request.form.get(required_key):
             form_errors[required_key] = f'{required_key} required'
     if form_errors:
-        return render_template(
-            'sign_up.html',
-            form_errors=form_errors,
-            **request.form
-        )
+        return f'Missing required values {", ".join(form_errors)}', 400
     email = request.form['email']
     password = request.form['password']
 
     # check to see if user already exists
     existing_user = current_app.datamodels.User.get(email=email)
     if existing_user:
-        # intentionally returning vague message
-        # to avoid email validation
-        return render_template(
-            'sign_up.html',
-            error='Unable to add user',
-            form_errors={},
-            **request.form
-        )
+        return 'Unable to add user', 401
 
     # check to see if profile with handle already exists
     existing_profile = current_app.datamodels.Profile.get(handle=request.form['handle'])
     if existing_profile:
-        # intentionally returning vague message
-        # to avoid email validation
-        return render_template(
-            'sign_up.html',
-            error='Unable to add user',
-            form_errors={},
-            **request.form
-        )
+        return 'Unable to add user', 401
 
     user = current_app.datamodels.User(
         id=current_app.datamodels.User.generate_uuid(),
@@ -139,11 +109,25 @@ def signup_post():
         current_app.task_manager.queue_task(
             payload, 'request-connection', url_for('queue_workers.request_connection')
         )
-        return 'Request to join pending', 401
+        return 'Request to join pending', 202
 
-    login_user(FlaskUser(user.id), remember=True)
     session['user'] = profile.as_json()
-    return redirect(url_for('main.home'))
+    login_user(FlaskUser(user.id), remember=True)
+    now = datetime.utcnow()
+    expires = now + timedelta(hours=6)
+    token = jwt.encode(
+        {
+            'exp': datetime.utcnow() + timedelta(hours=6),
+            'iat': datetime.utcnow(),
+            'sub': user.id,
+        },
+        current_app.config.get('SECRET_KEY'),
+        algorithm="HS256"
+    )
+    return {
+        AUTH_HEADER_NAME: token,
+        'expires': expires.timestamp()
+    }, 200
 
 @auth.route('/logout')
 def logout():
@@ -173,9 +157,30 @@ def load_user(user_id):
         user = current_app.datamodels.User.get(id=user_id)
         if user:
             session['authenticated_user'] = user.as_json()
+            profile = _get_profile(user.id)
+            session['user'] = profile.as_json()
         else:
             return None
     return FlaskUser(user_id)
+
+def request_loader(request):
+    token = request.headers.get(AUTH_HEADER_NAME)
+    user = None
+    if token:
+        try:
+            payload = jwt.decode(token, current_app.config.get('SECRET_KEY'), algorithms=["HS256"])
+        except PyJWTError:
+            print(traceback.format_exc())
+            return None
+        user_id = payload.get('sub')
+        user = current_app.datamodels.User.get(id=user_id)
+        if user:
+            session['authenticated_user'] = user.as_json()
+            profile = _get_profile(user.id)
+            session['user'] = profile.as_json()
+    if user:
+        return FlaskUser(user.id)
+    return None
 
 def _check_admin_connection(profile):
     # check for active admin user connection
@@ -200,3 +205,4 @@ def _check_admin_connection(profile):
 class FlaskUser(UserMixin):
     def __init__(self, id):
         self.id = id
+

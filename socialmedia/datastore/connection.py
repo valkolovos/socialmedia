@@ -1,19 +1,24 @@
 from google.cloud import datastore
 
-from .profile import Profile
-from .dataclient import datastore_client
 from socialmedia.models import Connection as BaseConnection
-from socialmedia.datastore.mixins import DatastoreGetMixin, DatastoreBase
+from socialmedia.datastore.mixins import DatastoreBase
 
-class Connection(BaseConnection, DatastoreBase, DatastoreGetMixin):
+from .dataclient import datastore_client
+from .profile import Profile
+
+class Connection(BaseConnection, DatastoreBase):
     kind = 'Connection'
 
     def save(self):
         if not hasattr(self,'key'):
-            key = datastore_client.key('Connection',
-                parent=self.profile.key if self.profile else None)
+            key = datastore_client.key('Connection', self.id,
+                parent=getattr(self.profile, 'key')
+                if self.profile and hasattr(self.profile, 'key')
+                else None
+            )
+            setattr(self, 'key', key)
         else:
-            key = self.key
+            key = getattr(self, 'key')
         connection_entity = datastore.Entity(key=key, exclude_from_indexes=('public_key',))
         connection_entity.update(self.as_dict())
         datastore_client.put(connection_entity)
@@ -32,6 +37,5 @@ class Connection(BaseConnection, DatastoreBase, DatastoreGetMixin):
 
     def from_datastore_obj(self, datastore_obj):
         if not self.profile:
-            key = datastore_client.key('Profile', datastore_obj.key.parent.id)
-            datastore_obj = datastore_client.get(key)
-            self.profile = Profile._build_obj(datastore_obj)
+            datastore_obj = datastore_client.get(self.key.parent)
+            self.profile = Profile._build_obj(datastore_obj) # pylint: disable=protected-access

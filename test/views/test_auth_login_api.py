@@ -1,4 +1,8 @@
+from datetime import datetime, timedelta
+from unittest import mock
+
 from flask import session
+from flask_login import AUTH_HEADER_NAME
 
 from socialmedia import connection_status
 from test import datamodels
@@ -38,13 +42,21 @@ def test_login_api(client):
         status=connection_status.CONNECTED,
     )
     adminConnection.save()
-    result = client.post('/login-api', data={
-        'email': 'gooduser@example.com',
-        'password': 'reallyStrongPassword',
-    })
-    assert result.status_code == 200
-    assert result.data == b'User logged in'
-    assert session['user'] == testProfile.as_json()
+    with mock.patch('socialmedia.views.auth.jwt') as jwt:
+        with mock.patch('socialmedia.views.auth.datetime') as dt:
+            utcnow_val = datetime(1990, 1, 1, 0, 0)
+            dt.utcnow.return_value = utcnow_val
+            jwt.encode.return_value = 'token response'
+            result = client.post('/login-api', data={
+                'email': 'gooduser@example.com',
+                'password': 'reallyStrongPassword',
+            })
+            assert result.status_code == 200
+            assert len(result.json.keys()) == 2
+            assert all(h in result.json.keys() for h in (AUTH_HEADER_NAME, 'expires'))
+            assert result.json[AUTH_HEADER_NAME] == 'token response'
+            assert result.json['expires'] == (utcnow_val + timedelta(hours=6)).timestamp()
+            assert session['user'] == testProfile.as_json()
 
 def test_login_api_no_user(client):
     ''' Tests login with non-existent user fails '''
@@ -147,13 +159,21 @@ def test_login_api_admin(client):
         user_id=2,
     )
     adminProfile.save()
-    result = client.post('/login-api', data={
-        'email': 'admin@example.com',
-        'password': 'reallyStrongPassword',
-    })
-    assert result.status_code == 200
-    assert result.data == b'User logged in'
-    assert session['user'] == adminProfile.as_json()
+    with mock.patch('socialmedia.views.auth.jwt') as jwt:
+        with mock.patch('socialmedia.views.auth.datetime') as dt:
+            utcnow_val = datetime(1990, 1, 1, 0, 0)
+            dt.utcnow.return_value = utcnow_val
+            jwt.encode.return_value = 'token response'
+            result = client.post('/login-api', data={
+                'email': 'admin@example.com',
+                'password': 'reallyStrongPassword',
+            })
+            assert result.status_code == 200
+            assert len(result.json.keys()) == 2
+            assert all(h in result.json.keys() for h in (AUTH_HEADER_NAME, 'expires'))
+            assert result.json[AUTH_HEADER_NAME] == 'token response'
+            assert result.json['expires'] == (utcnow_val + timedelta(hours=6)).timestamp()
+            assert session['user'] == adminProfile.as_json()
 
 def test_login_api_no_admin(client):
     ''' Tests that valid user without valid connection to admin fails and returns appropriate messaging. '''
