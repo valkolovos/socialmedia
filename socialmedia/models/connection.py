@@ -18,17 +18,18 @@ class Connection(UuidMixin):
         self.status = kwargs.get('status')
         self.created = kwargs.get('created', now)
         self.updated = kwargs.get('updated', now)
+        self.read = kwargs.get('read')
         if self.status not in connection_status.ALL:
             raise Exception(f'Connection status must be one of [{", ".join(connection_status.ALL)}]')
 
     def __str__(self):
         return f'id: {self.id}, profile: {{ {self.profile} }}, host: {self.host}, handle: {self.handle}, ' \
-            f'status: {self.status}, created: {self.created}, updated: {self.updated}'
+            f'status: {self.status}, created: {self.created}, updated: {self.updated} read: {self.read}'
 
     def __repr__(self):
         return f'Connection(id: {self.id}, profile: {{ {self.profile} }}, host: {self.host}, ' \
             f'handle: {self.handle}, status: {self.status}, public_key: {self.public_key}, ' \
-            f'created: {self.created}, updated: {self.updated})'
+            f'created: {self.created}, updated: {self.updated}, read: {self.read})'
 
     def __eq__(self, other):
         return all([
@@ -54,4 +55,5 @@ class Connection(UuidMixin):
             'status': self.status,
             'created': self.created,
             'updated': self.updated,
+            'read': self.read,
         }

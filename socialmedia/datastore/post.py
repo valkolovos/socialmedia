@@ -1,17 +1,17 @@
 from google.cloud import datastore
 
-from socialmedia.models import Connection as BaseConnection
+from socialmedia.models import Post  as BasePost
 from socialmedia.datastore.mixins import DatastoreBase
 
 from .dataclient import datastore_client
 from .profile import Profile
 
-class Connection(BaseConnection, DatastoreBase):
-    kind = 'Connection'
+class Post(BasePost, DatastoreBase):
+    kind = 'Post'
 
     def save(self):
         if not hasattr(self,'key'):
-            key = datastore_client.key('Connection', self.id,
+            key = datastore_client.key('Post', self.id,
                 parent=getattr(self.profile, 'key')
                 if self.profile and hasattr(self.profile, 'key')
                 else None
@@ -19,21 +19,16 @@ class Connection(BaseConnection, DatastoreBase):
             setattr(self, 'key', key)
         else:
             key = getattr(self, 'key')
-        connection_entity = datastore.Entity(key=key, exclude_from_indexes=('public_key',))
-        connection_entity.update(self.as_dict())
-        datastore_client.put(connection_entity)
+        post_entity = datastore.Entity(key=key)
+        post_entity.update(self.as_dict())
+        datastore_client.put(post_entity)
 
     def as_dict(self):
         return {
             'id': self.id,
-            'host': self.host,
-            'handle': self.handle,
-            'display_name': self.display_name,
-            'public_key': self.public_key,
-            'status': self.status,
+            'text': self.text,
+            'files': self.files,
             'created': self.created,
-            'updated': self.updated,
-            'read': self.read,
         }
 
     def from_datastore_obj(self, datastore_obj):

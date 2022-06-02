@@ -15,6 +15,7 @@ def test_constructor():
         display_name='Connection Display Name',
         public_key='public_key',
         status=connection_status.PENDING,
+        read=False,
     )
     assert uuid.UUID(connection.id)
     assert type(connection.profile) == Profile
@@ -24,6 +25,7 @@ def test_constructor():
     assert connection.status == connection_status.PENDING
     assert type(connection.created) == datetime
     assert type(connection.updated) == datetime
+    assert not connection.read
 
 def test_constructor_bad_connection():
     with pytest.raises(Exception) as e_info:
@@ -41,7 +43,7 @@ def test_str():
     )
     expected_str = f'id: {connection.id}, profile: {{ {connection.profile} }}, host: {connection.host}, ' \
         f'handle: {connection.handle}, status: {connection.status}, created: {connection.created}, ' \
-        f'updated: {connection.updated}'
+        f'updated: {connection.updated} read: {connection.read}'
     assert str(connection) == expected_str
 
 def test_repr():
@@ -55,7 +57,8 @@ def test_repr():
     )
     expected_repr = f'Connection(id: {connection.id}, profile: {{ {connection.profile} }}, ' \
         f'host: {connection.host}, handle: {connection.handle}, status: {connection.status}, ' \
-        f'public_key: {connection.public_key}, created: {connection.created}, updated: {connection.updated})'
+        f'public_key: {connection.public_key}, created: {connection.created}, updated: {connection.updated}, '\
+        f'read: {connection.read})'
     assert repr(connection) == expected_repr
 
 def test_eq():
@@ -120,4 +123,5 @@ def test_as_json():
         'status': connection.status,
         'created': connection.created,
         'updated': connection.updated,
+        'read': connection.read,
     }

@@ -27,8 +27,9 @@ class CommentReference(BaseCommentReference, DatastoreBase):
 
     def as_dict(self):
         return {
-            'message_id': self.message_id,
+            'post_id': self.post_id,
             'read': self.read,
+            'reference_read': self.reference_read,
             'created': self.created
         }
 

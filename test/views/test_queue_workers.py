@@ -202,7 +202,7 @@ def test_ack_connection_reply_failed(client):
         assert connection.status == connection_status.PENDING
         assert connection.updated == connection.created
 
-def test_message_created(client):
+def test_post_created(client):
     user = datamodels.User(
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
@@ -230,44 +230,44 @@ def test_message_created(client):
         status=connection_status.CONNECTED,
     )
     connection_two.save()
-    message = datamodels.Message(
+    post = datamodels.Post(
         profile=profile,
-        text='Message Text',
+        text='Post Text',
     )
-    message.save()
-    response = client.post(url_for('queue_workers.message_created'), json={
-        'message_id': message.id,
+    post.save()
+    response = client.post(url_for('queue_workers.post_created'), json={
+        'post_id': post.id,
     })
     assert response.status_code == 200
     assert client.application.task_manager.queue_task.call_count == 2
     client.application.task_manager.queue_task.assert_any_call(
         {
-            'user_key': message.profile.user_id,
-            'message_id': message.id,
+            'user_key': post.profile.user_id,
+            'post_id': post.id,
             'connection_key': connection_one.id,
         },
-        'message-notify',
-        url_for('queue_workers.message_notify')
+        'post-notify',
+        url_for('queue_workers.post_notify')
     )
     client.application.task_manager.queue_task.assert_any_call(
         {
-            'user_key': message.profile.user_id,
-            'message_id': message.id,
+            'user_key': post.profile.user_id,
+            'post_id': post.id,
             'connection_key': connection_two.id,
         },
-        'message-notify',
-        url_for('queue_workers.message_notify')
+        'post-notify',
+        url_for('queue_workers.post_notify')
     )
 
-def test_message_created_no_such_message(client):
-    response = client.post(url_for('queue_workers.message_created'), json={
-        'message_id': 'bogus',
+def test_post_created_no_such_post(client):
+    response = client.post(url_for('queue_workers.post_created'), json={
+        'post_id': 'bogus',
     })
     assert response.status_code == 404
-    assert response.data == bytes(f'message bogus not found', encoding='utf-8')
+    assert response.data == bytes(f'post bogus not found', encoding='utf-8')
     assert client.application.task_manager.queue_task.call_count == 0
 
-def test_message_notify(client):
+def test_post_notify(client):
     user = datamodels.User(
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
@@ -299,14 +299,14 @@ def test_message_notify(client):
     connection.save()
     with mock.patch('socialmedia.views.queue_workers.requests') as req:
         req.post.return_value = MockResponse(200, None)
-        response = client.post(url_for('queue_workers.message_notify'), json={
+        response = client.post(url_for('queue_workers.post_notify'), json={
             'user_key': user.id,
-            'message_id': 'mock_message_id',
+            'post_id': 'mock_post_id',
             'connection_key': connection.id,
         })
         assert response.status_code == 200
         assert req.post.call_count == 1
-        assert req.post.call_args[0][0] == f'https://other_host.com{url_for("external_comms.message_notify")}'
+        assert req.post.call_args[0][0] == f'https://other_host.com{url_for("external_comms.post_notify")}'
         assert req.post.call_args[1]['json']['handle'] == connection.handle
         request_data = req.post.call_args[1]['json']
         request_payload = decrypt_payload(
@@ -316,11 +316,11 @@ def test_message_notify(client):
             request_data['nonce'],
             request_data['tag'],
         )
-        assert request_payload['message_host'] == 'localhost'
-        assert request_payload['message_handle'] == 'handle'
-        assert request_payload['message_id'] == 'mock_message_id'
+        assert request_payload['post_host'] == 'localhost'
+        assert request_payload['post_handle'] == 'handle'
+        assert request_payload['post_id'] == 'mock_post_id'
 
-def test_message_notify_failed(client):
+def test_post_notify_failed(client):
     user = datamodels.User(
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
@@ -352,9 +352,9 @@ def test_message_notify_failed(client):
     connection.save()
     with mock.patch('socialmedia.views.queue_workers.requests') as req:
         req.post.return_value = MockResponse(500, b'Oops')
-        response = client.post(url_for('queue_workers.message_notify'), json={
+        response = client.post(url_for('queue_workers.post_notify'), json={
             'user_key': user.id,
-            'message_id': 'mock_message_id',
+            'post_id': 'mock_post_id',
             'connection_key': connection.id,
         })
         assert response.status_code == 500
@@ -395,12 +395,12 @@ def test_comment_created(client):
         response = client.post(url_for('queue_workers.comment_created'), json={
             'user_key': profile.user_id,
             'user_host': 'localhost',
-            'message_id': 'message_id',
+            'post_id': 'post_id',
             'comment_id': 'comment_id',
             'connection_key': connection.id,
         })
         assert response.status_code == 200
-        assert response.data == b'Connection other_handle@other_host.com notified of comment message_id on message comment_id'
+        assert response.data == b'Connection other_handle@other_host.com notified of comment post_id on post comment_id'
 
 def test_comment_created_notification_failed(client):
     user = datamodels.User(
@@ -437,7 +437,7 @@ def test_comment_created_notification_failed(client):
         response = client.post(url_for('queue_workers.comment_created'), json={
             'user_key': profile.user_id,
             'user_host': 'localhost',
-            'message_id': 'message_id',
+            'post_id': 'post_id',
             'comment_id': 'comment_id',
             'connection_key': connection.id,
         })

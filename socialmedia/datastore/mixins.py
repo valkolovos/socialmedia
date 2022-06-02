@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from .dataclient import datastore_client
 
 class DatastoreBase:
@@ -17,6 +19,7 @@ class DatastoreBase:
         executes a search using provided keywords and returns
         the first one foud if any
         '''
+        _timer = datetime.now()
         query = datastore_client.query(kind=cls.kind)
         for key, value in kwargs.items():
             if isinstance(value, DatastoreBase) and hasattr(value, 'key'):
@@ -24,9 +27,11 @@ class DatastoreBase:
             else:
                 query.add_filter(key, '=', value)
         results = list(query.fetch(limit=1))
+        obj = None
         if results:
-            return cls._build_obj(results[0])
-        return None
+            obj = cls._build_obj(results[0])
+        print(f'[datastore] get({cls.kind}, {kwargs}): {(datetime.now() - _timer).total_seconds()}')
+        return obj
 
     @classmethod
     def list(cls, **kwargs):
@@ -34,6 +39,7 @@ class DatastoreBase:
         executes a search using provided keywords
         if 'order' exists in kwargs, the value will be used as sort
         '''
+        _timer = datetime.now()
         query = datastore_client.query(kind=cls.kind)
         kwarg_objects = {key: value for (key, value) in kwargs.items() if isinstance(value, DatastoreBase)}
         if 'order' in kwargs:
@@ -48,7 +54,26 @@ class DatastoreBase:
             for result in results:
                 if hasattr(result, key):
                     setattr(result, key, value)
+        print(f'[datastore] list({cls.kind}, {kwargs}): {(datetime.now() - _timer).total_seconds()}')
         return results
+
+    @classmethod
+    def count(cls, **kwargs):
+        '''
+        executes a search using provided keywords
+        if 'order' exists in kwargs, the value will be used as sort
+        '''
+        query = datastore_client.query(kind=cls.kind)
+        kwarg_objects = {key: value for (key, value) in kwargs.items() if isinstance(value, DatastoreBase)}
+        if 'order' in kwargs:
+            query.order = kwargs.pop('order')
+        for key, value in kwargs.items():
+            if isinstance(value, DatastoreBase) and hasattr(value, 'key'):
+                query.ancestor=getattr(value, 'key')
+            else:
+                query.add_filter(key, '=', value)
+        query.keys_only()
+        return len(list(query.fetch()))
 
     @classmethod
     def _build_obj(cls, datastore_obj):

@@ -1,7 +1,7 @@
-from .message_reference import MessageReference
+from .post_reference import PostReference
 
-class CommentReference(MessageReference):
+class CommentReference(PostReference):
 
     def __repr__(self):
         return f'CommentReference(connection: {{ {repr(self.connection)} }}, ' \
-            f'message_id: {self.message_id}, read: {self.read}, created: {self.created})'
+            f'post_id: {self.post_id}, read: {self.read}, created: {self.created})'

@@ -96,6 +96,32 @@ def test_login_api_bad_password(client):
     )
     testUser.set_password('reallyStrongPassword')
     testUser.save()
+    adminUser = datamodels.User(
+        email='admin@example.com',
+        id=2,
+        admin=True,
+    )
+    adminUser.set_password('reallyStrongPassword')
+    adminUser.save()
+    testProfile = datamodels.Profile(
+        display_name='Test User',
+        handle='test_handle',
+        user_id=1,
+    )
+    testProfile.save()
+    adminProfile = datamodels.Profile(
+        display_name='Admin User',
+        handle='admin_handle',
+        user_id=2,
+    )
+    adminProfile.save()
+    adminConnection = datamodels.Connection(
+        profile=adminProfile,
+        host='localhost',
+        handle='test_handle',
+        status=connection_status.CONNECTED,
+    )
+    adminConnection.save()
     result = client.post('/login-api', data={
         'email': 'gooduser@example.com',
         'password': 'badPassword',

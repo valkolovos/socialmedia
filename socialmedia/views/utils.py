@@ -67,24 +67,26 @@ def create_profile(user_id, display_name, handle):
     profile.save()
     return profile
 
-def get_message_comments(messages, comment_references, request_host):
+def get_post_comments(posts, comment_references, request_host):
     commentors = defaultdict(list)
     # cheap hack to create a set of commentors by using the ids as keys
     all_commentors = {}
-    # message_dict to be able to look up messages by id later
-    message_dict = {}
-    connectee = messages[0].profile
-    for message in messages:
-        message_dict[message.id] = message
-        for comment_reference in comment_references[message.id]:
-           commentors[comment_reference.connection.id].append(message)
+    # post_dict to be able to look up posts by id later
+    post_dict = {}
+    if not len(posts):
+        return
+    connectee = posts[0].profile
+    for post in posts:
+        post_dict[post.id] = post
+        for comment_reference in comment_references[post.id]:
+           commentors[comment_reference.connection.id].append(post)
            all_commentors[comment_reference.connection.id] = comment_reference.connection
 
-    async def get_comments(connection, messages):
+    async def get_comments(connection, posts):
         request_payload = {
           'host': request_host,
           'handle': connectee.handle,
-          'message_ids': list({m.id for m in messages}),
+          'post_ids': list({m.id for m in posts}),
         }
         # enc_and_sign_payload(profile, connection. request_payload)
         # profile is connectee and connection is requestor
@@ -125,24 +127,24 @@ def get_message_comments(messages, comment_references, request_host):
                         public_key=comment_json['profile']['public_key'],
                         user_id=comment_json['profile']['user_id'],
                     ),
-                    message_id=comment_json['message_id'],
+                    post_id=comment_json['post_id'],
                     text=comment_json['text'],
                     files=comment_json['files'],
                     created=dateparser.parse(
                         comment_json['created'], settings={'TIMEZONE': 'UTC'}
                     ),
                 )
-                message_dict[comment.message_id].comments.add(comment)
+                post_dict[comment.post_id].comments.add(comment)
         else:
-            for message in messages:
-                message_dict[message.id].comments.add(
+            for post in posts:
+                post_dict[post.id].comments.add(
                     models.Comment(
                         profile=models.Profile(
                             handle=connection.handle,
                             display_name=connection.display_name,
                         ),
                         text='error retrieving comments',
-                        message_id=message.id,
+                        post_id=post.id,
                     )
                 )
             print(f'Unable to retrieve comments {response.status_code}')

@@ -26,7 +26,7 @@ class Comment(BaseComment, DatastoreBase):
     def as_dict(self):
         return {
             'id': self.id,
-            'message_id': self.message_id,
+            'post_id': self.post_id,
             'text': self.text,
             'files': self.files,
             'created': self.created,

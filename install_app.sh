@@ -9,7 +9,7 @@ if [[ -z $REGION ]]; then
   REGION=us-west2
 fi
 
-QUEUES=("message-created" "message-notify" "ack-connection" "request-connection" "comment-created")
+QUEUES=("post-created" "post-notify" "ack-connection" "request-connection" "comment-created")
 gcloud components update --quiet
 # create project
 echo "Creating Project ${PROJECT_NAME}..."

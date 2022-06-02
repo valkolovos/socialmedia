@@ -1,10 +1,16 @@
 import json
 
+from unittest import mock
+
+from collections import namedtuple
 from flask import url_for
 
 from socialmedia import connection_status
+from socialmedia.views.utils import enc_and_sign_payload
 from test import datamodels
 from .utils import client
+
+MockResponse = namedtuple('NamedResponse', ['status_code', 'content'])
 
 def test_request_connection(client):
     # not adding either of these to test.datamodels
@@ -78,6 +84,7 @@ def test_manage_connection_connect(client):
         display_name=other_profile.display_name,
         public_key=other_profile.public_key,
         status=connection_status.PENDING,
+        read=False,
     )
     connection.save()
     # need to set a user id in the session
@@ -104,6 +111,7 @@ def test_manage_connection_connect(client):
         url_for('queue_workers.ack_connection')
     )
     assert connection.status == connection_status.CONNECTED
+    assert connection.read
 
 def test_manage_connection_delete(client):
     user = datamodels.User(
@@ -319,11 +327,21 @@ def test_get_connection_info(client):
         status=connection_status.CONNECTED,
     )
     connection_one.save()
-    message_reference_one = datamodels.MessageReference(
-        connection=connection_one,
-        message_id='mock_message_id',
+    other_connection_one = datamodels.Connection(
+        profile=other_profile_one,
+        host='localhost',
+        handle=profile.handle,
+        display_name=profile.handle,
+        public_key=profile.public_key,
+        status=connection_status.CONNECTED,
     )
-    message_reference_one.save()
+    post_reference_one = datamodels.PostReference(
+        connection=connection_one,
+        post_id='mock_post_id_one',
+        reference_read=False,
+        read=False
+    )
+    post_reference_one.save()
     other_user_two = datamodels.User(
         email='other_user@different_host.com',
         id=datamodels.User.generate_uuid(),
@@ -342,12 +360,21 @@ def test_get_connection_info(client):
         status=connection_status.CONNECTED,
     )
     connection_two.save()
-    message_reference_two = datamodels.MessageReference(
+    other_connection_two = datamodels.Connection(
+        profile=other_profile_two,
+        host='localhost',
+        handle=profile.handle,
+        display_name=profile.handle,
+        public_key=profile.public_key,
+        status=connection_status.CONNECTED,
+    )
+    post_reference_two = datamodels.PostReference(
         connection=connection_two,
-        message_id='mock_message_id',
+        post_id='mock_post_id_two',
+        reference_read=True,
         read=True,
     )
-    message_reference_two.save()
+    post_reference_two.save()
     declined_user = datamodels.User(
         email='declined_user@different_host.com',
         id=datamodels.User.generate_uuid(),
@@ -401,29 +428,73 @@ def test_get_connection_info(client):
         sess['_user_id'] = user.id
         sess['authenticated_user'] = user.as_json()
         sess['user'] = profile.as_json()
-    client.get('/')
-    response = client.get(url_for('main.get_connection_info'))
+    enc_payload_one, enc_key_one, signature_one, nonce_one, tag_one = enc_and_sign_payload(
+        other_profile_one, other_connection_one, {'post_count': 1}
+    )
+    enc_payload_two, enc_key_two, signature_two, nonce_two, tag_two = enc_and_sign_payload(
+        other_profile_two, other_connection_two, {'post_count': 1}
+    )
+
+    with mock.patch('socialmedia.views.main.requests') as req:
+        req.post.side_effect = [
+            MockResponse(
+                200,
+                json.dumps({
+                    'enc_payload': enc_payload_one,
+                    'enc_key': enc_key_one,
+                    'signature': signature_one,
+                    'nonce': nonce_one,
+                    'tag': tag_one
+                })
+            ),
+            MockResponse(
+                200,
+                json.dumps({
+                    'enc_payload': enc_payload_two,
+                    'enc_key': enc_key_two,
+                    'signature': signature_two,
+                    'nonce': nonce_two,
+                    'tag': tag_two
+                })
+            ),
+        ]
+        client.get('/')
+        response = client.get(url_for('main.get_connection_info'))
     assert response.status_code == 200
     json_response = json.loads(response.data)
-    assert len(json_response) == 3
+    assert len(json_response['connections']) == 3
+    assert len(json_response['post_references']) == 2
     assert_dict = {}
-    for conn in json_response:
+    post_reference_dict = {
+        post_reference['post_id']: post_reference
+        for post_reference in json_response['post_references']
+    }
+    for conn in json_response['connections']:
         assert_dict[conn['handle']] = conn
+
+    assert not post_reference_dict[post_reference_one.post_id]['read']
+    assert not post_reference_dict[post_reference_one.post_id]['reference_read']
+    assert post_reference_dict[post_reference_two.post_id]['read']
+    assert post_reference_dict[post_reference_two.post_id]['reference_read']
 
     assert assert_dict['other_handle_one']['display_name'] == connection_one.display_name
     assert assert_dict['other_handle_one']['host'] == connection_one.host
     assert assert_dict['other_handle_one']['id'] == connection_one.id
     assert assert_dict['other_handle_one']['status'] == connection_one.status
-    assert assert_dict['other_handle_one']['unread_message_count'] == 1
+    assert len(assert_dict['other_handle_one']['post_references']) == 1
+    assert not assert_dict['other_handle_one']['post_references'][0]['read']
+    assert not assert_dict['other_handle_one']['post_references'][0]['reference_read']
 
     assert assert_dict['other_handle_two']['display_name'] == connection_two.display_name
     assert assert_dict['other_handle_two']['host'] == connection_two.host
     assert assert_dict['other_handle_two']['id'] == connection_two.id
     assert assert_dict['other_handle_two']['status'] == connection_two.status
-    assert assert_dict['other_handle_two']['unread_message_count'] == 0
+    assert len(assert_dict['other_handle_two']['post_references']) == 1
+    assert assert_dict['other_handle_two']['post_references'][0]['read'] == True
+    assert assert_dict['other_handle_two']['post_references'][0]['reference_read'] == True
 
     assert assert_dict['requesting_user']['display_name'] == pending_connection.display_name
     assert assert_dict['requesting_user']['host'] == pending_connection.host
     assert assert_dict['requesting_user']['id'] == pending_connection.id
     assert assert_dict['requesting_user']['status'] == pending_connection.status
-    assert assert_dict['requesting_user']['unread_message_count'] == 0
+    assert len(assert_dict['requesting_user']['post_references']) == 0
