@@ -1,11 +1,11 @@
 Flask==2.1.2
 Flask-Login==0.6.1
-google-cloud-datastore==2.5.0
+google-cloud-datastore==2.7.1
 pycryptodome==3.14.1
 #six==1.12.0
 python-dateutil==2.8.2
-google-cloud-tasks==2.8.0
-google-cloud-storage==2.1.0
+google-cloud-tasks==2.9.1
+google-cloud-storage==2.4.0
 #google-python-cloud-debugger
 sortedcontainers==2.4.0
 dateparser==1.1.0

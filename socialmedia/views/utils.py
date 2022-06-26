@@ -68,6 +68,8 @@ def create_profile(user_id, display_name, handle):
     return profile
 
 def get_message_comments(messages, comment_references, request_host):
+    if not messages:
+        return
     commentors = defaultdict(list)
     # cheap hack to create a set of commentors by using the ids as keys
     all_commentors = {}
