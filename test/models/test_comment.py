@@ -10,13 +10,13 @@ def test_constructor():
             display_name='Profile Display Name',
             user_id='user_id'
         ),
-        message_id='message_id',
+        post_id='post_id',
         text='Test Comment',
         files=['file1.txt']
     )
     assert uuid.UUID(comment.id)
     assert comment.text == 'Test Comment'
-    assert comment.message_id == 'message_id'
+    assert comment.post_id == 'post_id'
     assert comment.profile is not None
     assert len(comment.files) == 1
     assert comment.files[0] == 'file1.txt'
@@ -29,11 +29,11 @@ def test_str():
             display_name='Profile Display Name',
             user_id='user_id'
         ),
-        message_id='message_id',
+        post_id='post_id',
         text='Test Comment',
         files=['file1.txt']
     )
-    expected_str = f'id: {comment.id}, message_id: {comment.message_id}, '\
+    expected_str = f'id: {comment.id}, post_id: {comment.post_id}, '\
         f'profile: {{ {str(comment.profile)} }}, text: {comment.text}, files: {comment.files}, '\
         f'created: {comment.created}'
     assert str(comment) == expected_str
@@ -45,11 +45,11 @@ def test_repr():
             display_name='Profile Display Name',
             user_id='user_id'
         ),
-        message_id='message_id',
+        post_id='post_id',
         text='Test Comment',
         files=['file1.txt']
     )
-    expected_repr = f'Comment(id: {comment.id}, message_id: {comment.message_id}, '\
+    expected_repr = f'Comment(id: {comment.id}, post_id: {comment.post_id}, '\
         f'profile: {{ {repr(comment.profile)} }}, text: {comment.text}, files: {comment.files}, '\
         f'created: {comment.created})'
     assert repr(comment) == expected_repr
@@ -61,7 +61,7 @@ def test_as_json():
             display_name='Profile Display Name',
             user_id='user_id'
         ),
-        message_id='message_id',
+        post_id='post_id',
         text='Test Comment',
         files=['file1.txt']
     )
@@ -69,7 +69,7 @@ def test_as_json():
     assert comment_as_json == {
         'profile': comment.profile.as_json(),
         'id': comment.id,
-        'message_id': comment.message_id,
+        'post_id': comment.post_id,
         'text': comment.text,
         'created': str(comment.created),
         'files': comment.files,
@@ -82,14 +82,14 @@ def test_eq():
             display_name='Profile Display Name',
             user_id='user_id'
         ),
-        message_id='message_id',
+        post_id='post_id',
         text='Test Comment',
         files=['file1.txt']
     )
     comment_two = Comment(
         id=comment_one.id,
         profile=comment_one.profile,
-        message_id='message_id',
+        post_id='post_id',
         text='Test Comment',
         files=['file1.txt'],
         created=comment_one.created,
@@ -103,13 +103,13 @@ def test_not_eq():
             display_name='Profile Display Name',
             user_id='user_id'
         ),
-        message_id='message_id',
+        post_id='post_id',
         text='Test Comment',
         files=['file1.txt']
     )
     comment_two = Comment(
         profile=comment_one.profile,
-        message_id='message_id',
+        post_id='post_id',
         text='Test Comment',
         files=['file1.txt'],
         created=comment_one.created,

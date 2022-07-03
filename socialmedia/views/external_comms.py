@@ -19,7 +19,7 @@ from socialmedia.views.validation_decorators import (
 from socialmedia.views.utils import (
     decrypt_payload,
     enc_and_sign_payload,
-    get_message_comments,
+    get_post_comments,
 )
 
 
@@ -66,6 +66,7 @@ def request_connection(request_data, connectee):
         display_name=request_payload['requestor_display_name'],
         public_key=request_payload['requestor_public_key'],
         status=connection_status.PENDING,
+        read=False,
     )
     connection.save()
     return 'Request completed', 200
@@ -106,37 +107,65 @@ def ack_connection(request_data, connectee, request_payload):
     connection.save()
     return 'Request completed', 200
 
-@blueprint.route('/retrieve-messages', methods=['POST'])
+@blueprint.route('/get-profile-info', methods=['POST'])
 @json_request
 @validate_request
 @validate_handle
 @validate_payload(fields=('host', 'handle'))
 @validate_connection
-def retrieve_messages(request_data, connectee, request_payload, requestor):
-    ''' Requests messages for given handle
+def get_profile_info(request_data, connectee, request_payload, requestor):
+    ''' Gets profile info for display on requestor's side
         request should be JSON:
         {
           'host': 'requestor hostname',
           'handle': 'requestor handle',
         }
-        returns messages
+        returns profile information
     '''
-    messages = current_app.datamodels.Message.list(profile=connectee)
+    post_count = current_app.datamodels.Post.count(profile=connectee)
+
+    enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
+        connectee, requestor, { 'post_count': post_count }
+    )
+    return jsonify(
+        enc_payload=enc_payload,
+        enc_key=enc_key,
+        signature=signature,
+        nonce=nonce,
+        tag=tag
+    ), 200
+
+@blueprint.route('/retrieve-posts', methods=['POST'])
+@json_request
+@validate_request
+@validate_handle
+@validate_payload(fields=('host', 'handle'))
+@validate_connection
+def retrieve_posts(request_data, connectee, request_payload, requestor):
+    ''' Requests posts for given handle
+        request should be JSON:
+        {
+          'host': 'requestor hostname',
+          'handle': 'requestor handle',
+        }
+        returns posts
+    '''
+    posts = current_app.datamodels.Post.list(profile=connectee, order=['-created'])
     # probably could be pretty significantly optimized in some way
 
     comment_references = defaultdict(list)
-    for message in messages:
+    for post in posts:
         for comment_reference in current_app.datamodels.CommentReference.list(
-            message_id=message.id
+            post_id=post.id
         ):
-            comment_references[message.id].append(comment_reference)
-        if message.files:
-            message.files = current_app.url_signer(message.files)
+            comment_references[post.id].append(comment_reference)
+        if post.files:
+            post.files = current_app.url_signer(post.files)
 
-    get_message_comments(messages, comment_references, request.host)
+    get_post_comments(posts, comment_references, request.host)
 
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
-        connectee, requestor, [m.as_json() for m in messages]
+        connectee, requestor, [m.as_json() for m in posts]
     )
     return jsonify(
         enc_payload=enc_payload,
@@ -147,30 +176,32 @@ def retrieve_messages(request_data, connectee, request_payload, requestor):
     ), 200
 
 
-@blueprint.route('/message-notify', methods=['POST'])
+@blueprint.route('/post-notify', methods=['POST'])
 @json_request
 @validate_request
 @validate_handle
 @validate_payload(
     fields=(
-        'message_host', 'message_handle', 'message_id',
+        'post_host', 'post_handle', 'post_id',
     )
 )
-@validate_connection(host_key='message_host', handle_key='message_handle')
-def message_notify(request_data, connectee, request_payload, requestor):
-    ''' Notification endpoint for notification of messages from other connections
+@validate_connection(host_key='post_host', handle_key='post_handle')
+def post_notify(request_data, connectee, request_payload, requestor):
+    ''' Notification endpoint for notification of posts from other connections
         enc_payload should be JSON:
         {
-          'message_host': 'hostname',
-          'message_handle': 'requestor handle',
-          'message_id': 'id of new message',
+          'post_host': 'hostname',
+          'post_handle': 'requestor handle',
+          'post_id': 'id of new post',
         }
     '''
-    message_reference = current_app.datamodels.MessageReference(
+    post_reference = current_app.datamodels.PostReference(
         connection=requestor,
-        message_id=request_payload['message_id'],
+        post_id=request_payload['post_id'],
+        reference_read=False,
+        read=False
     )
-    message_reference.save()
+    post_reference.save()
     return '', 200
 
 @blueprint.route('/comment-created', methods=['POST'])
@@ -179,27 +210,27 @@ def message_notify(request_data, connectee, request_payload, requestor):
 @validate_handle
 @validate_payload(
     fields=(
-        'comment_host', 'comment_handle', 'message_id', 'comment_id',
+        'comment_host', 'comment_handle', 'post_id', 'comment_id',
     )
 )
 @validate_connection(host_key='comment_host', handle_key='comment_handle')
 def comment_created(request_data, connectee, request_payload, requestor):
-    ''' Notification endpoint for notification of new comment on a message
+    ''' Notification endpoint for notification of new comment on a post
         enc_payload should be JSON:
         {
           'comment_host': 'commenter hostname',
           'comment_handle': 'commenter handle',
-          'message_id': 'id of message commented on',
+          'post_id': 'id of post commented on',
           'comment_id': 'id of comment'
         }
     '''
-    # verify message exists
-    message = current_app.datamodels.Message.get(id=request_payload['message_id'])
-    if not message:
-        return f'No message found for id {request_payload["message_id"]}', 404
+    # verify post exists
+    post = current_app.datamodels.Post.get(id=request_payload['post_id'])
+    if not post:
+        return f'No post found for id {request_payload["post_id"]}', 404
     comment_reference = current_app.datamodels.CommentReference(
         connection=requestor,
-        message_id=request_payload['message_id'],
+        post_id=request_payload['post_id'],
     )
     comment_reference.save()
     return '', 200
@@ -210,22 +241,22 @@ def comment_created(request_data, connectee, request_payload, requestor):
 @validate_handle
 @validate_payload(
     fields=(
-        'host', 'handle', 'message_ids',
+        'host', 'handle', 'post_ids',
     )
 )
 @validate_connection()
 def retrieve_comments(request_data, connectee, request_payload, requestor):
-    ''' Requests comments for a list of messages
+    ''' Requests comments for a list of posts
         enc_payload should be JSON:
         {
           'host': 'requestor host',
           'handle': 'requestor handle',
-          'message_ids': ['array of message ids'],
+          'post_ids': ['array of post ids'],
         }
     '''
     all_comments = []
-    for msg_id in request_payload['message_ids']:
-        comments = current_app.datamodels.Comment.list(message_id=msg_id)
+    for msg_id in request_payload['post_ids']:
+        comments = current_app.datamodels.Comment.list(post_id=msg_id)
         for comment in comments:
             comment.files = current_app.url_signer(comment.files)
         all_comments.extend([c.as_json() for c in comments])

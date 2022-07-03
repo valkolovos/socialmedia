@@ -124,57 +124,57 @@ def request_connection(request_data):
         return 'Connection request failed', response.status_code
     return 'Connection requested', 200
 
-@blueprint.route('/message-created', methods=['POST'])
+@blueprint.route('/post-created', methods=['POST'])
 @json_request
-@validate_request(fields=('message_id',))
-def message_created(request_data):
-    ''' Finds all connections and puts a task on the message-notify queue
-        for each to notify that a new message has been created
+@validate_request(fields=('post_id',))
+def post_created(request_data):
+    ''' Finds all connections and puts a task on the post-notify queue
+        for each to notify that a new post has been created
         payload should be JSON
         {
-            'message_id': 'message id'
+            'post_id': 'post id'
         }
     '''
-    message = current_app.datamodels.Message.get(id=request_data['message_id'])
-    if not message:
-        print(f'message {request_data["message_id"]} not found')
-        return f'message {request_data["message_id"]} not found', 404
-    connections = current_app.datamodels.Connection.list(profile=message.profile)
+    post = current_app.datamodels.Post.get(id=request_data['post_id'])
+    if not post:
+        print(f'post {request_data["post_id"]} not found')
+        return f'post {request_data["post_id"]} not found', 404
+    connections = current_app.datamodels.Connection.list(profile=post.profile)
     for connection in connections:
         payload = {
-            'user_key': message.profile.user_id,
-            'message_id': request_data['message_id'],
+            'user_key': post.profile.user_id,
+            'post_id': request_data['post_id'],
             'connection_key': connection.id,
         }
         current_app.task_manager.queue_task(
             payload,
-            'message-notify',
-            url_for('queue_workers.message_notify')
+            'post-notify',
+            url_for('queue_workers.post_notify')
         )
     return 'Notification tasks created', 200
 
-@blueprint.route('/message-notify', methods=['POST'])
+@blueprint.route('/post-notify', methods=['POST'])
 @json_request
 @validate_request(fields=(
     'user_key',
-    'message_id',
+    'post_id',
     'connection_key'
 ))
-def message_notify(request_data):
+def post_notify(request_data):
     '''
-        Notifies a connection that a new message has been posted
+        Notifies a connection that a new post has been posted
         payload should be JSON
         {
-            'user_key': 'user key for datastore', # message creator
-            'message_id': 'message id'
+            'user_key': 'user key for datastore', # post creator
+            'post_id': 'post id'
             'connection_key': 'connection key', # connection to notify
         }
     '''
     connection = current_app.datamodels.Connection.get(id=request_data['connection_key'])
     request_payload = {
-      'message_host': request.host,
-      'message_handle': connection.profile.handle,
-      'message_id': request_data['message_id'],
+      'post_host': request.host,
+      'post_handle': connection.profile.handle,
+      'post_id': request_data['post_id'],
     }
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
         connection.profile, connection, request_payload
@@ -182,7 +182,7 @@ def message_notify(request_data):
     protocol = 'https'
     if connection.host == 'localhost:8080': # pragma: no cover
         protocol = 'http'
-    request_url = f'{protocol}://{connection.host}{url_for("external_comms.message_notify")}'
+    request_url = f'{protocol}://{connection.host}{url_for("external_comms.post_notify")}'
     # send request to connection's host
     response = requests.post(
         request_url,
@@ -196,9 +196,9 @@ def message_notify(request_data):
         }
     )
     if response.status_code != 200:
-        print('Message notify failed {}:{}'.format(response.status_code, response.content))
+        print('Post notify failed {}:{}'.format(response.status_code, response.content))
         return (
-            'Message notify failed {}:{}'.format(response.status_code, response.content),
+            'Post notify failed {}:{}'.format(response.status_code, response.content),
             response.status_code
         )
     return 'Connection {}@{} notified'.format(connection.handle, connection.host), 200
@@ -208,17 +208,17 @@ def message_notify(request_data):
 @validate_request(fields=(
     'user_key',
     'user_host',
-    'message_id',
+    'post_id',
     'comment_id',
     'connection_key',
 ))
 def comment_created(request_data):
-    ''' Notifies a connection that a comment has been added to their message
+    ''' Notifies a connection that a comment has been added to their post
         payload should be JSON
         {
-            'user_key': 'user key for datastore', # message creator
+            'user_key': 'user key for datastore', # post creator
             'user_host': 'users host',
-            'message_id': 'message id'
+            'post_id': 'post id'
             'comment_id': 'comment id in datastore',
             'connection_key': 'connection key', # connection to notify
         }
@@ -231,7 +231,7 @@ def comment_created(request_data):
     request_payload = {
       'comment_host': request_data['user_host'],
       'comment_handle': profile.handle,
-      'message_id': request_data['message_id'],
+      'post_id': request_data['post_id'],
       'comment_id': request_data['comment_id'],
     }
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
@@ -259,9 +259,9 @@ def comment_created(request_data):
             'New comment notify failed {}:{}'.format(response.status_code, response.content),
             response.status_code
         )
-    return 'Connection {}@{} notified of comment {} on message {}'.format(
+    return 'Connection {}@{} notified of comment {} on post {}'.format(
         connection.handle,
         connection.host,
-        request_data['message_id'],
+        request_data['post_id'],
         request_data['comment_id']
     ), 200

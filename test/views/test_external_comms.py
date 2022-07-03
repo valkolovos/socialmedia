@@ -310,7 +310,7 @@ def test_ack_connection_already_connected(client):
     assert response.status_code == 200
     assert requested_connection.updated == requested_connection.created
 
-def test_retrieve_messages(client):
+def test_retrieve_posts(client):
     requestor_user = datamodels.User(
         email='requestor@example.com',
         id=datamodels.User.generate_uuid(),
@@ -366,35 +366,35 @@ def test_retrieve_messages(client):
         profile=requested_profile,
     )
     third_connection.save()
-    message_one = datamodels.Message(
+    post_one = datamodels.Post(
         profile=requested_profile,
-        text='This is a message',
-        files=['message_one.png'],
+        text='This is a post',
+        files=['post_one.png'],
     )
-    message_one.save()
-    message_two = datamodels.Message(
+    post_one.save()
+    post_two = datamodels.Post(
         profile=requested_profile,
-        text='This is a message without comments or files',
+        text='This is a post without comments or files',
     )
-    message_two.save()
-    message_three = datamodels.Message(
+    post_two.save()
+    post_three = datamodels.Post(
         profile=requested_profile,
-        text='This is a message with one comment and no files',
+        text='This is a post with one comment and no files',
     )
-    message_three.save()
+    post_three.save()
     comment_one_reference = datamodels.CommentReference(
         connection=requested_connection,
-        message_id=message_one.id,
+        post_id=post_one.id,
     )
     comment_one_reference.save()
     comment_two_reference = datamodels.CommentReference(
         connection=third_connection,
-        message_id=message_one.id,
+        post_id=post_one.id,
     )
     comment_two_reference.save()
     comment_three_reference = datamodels.CommentReference(
         connection=third_connection,
-        message_id=message_three.id,
+        post_id=post_three.id,
     )
     comment_three_reference.save()
 
@@ -412,7 +412,7 @@ def test_retrieve_messages(client):
             if json_payload['handle'] == requestor_profile.handle:
                 comment = datamodels.Comment(
                     profile=requestor_profile,
-                    message_id=message_one.id,
+                    post_id=post_one.id,
                     text='This is a comment from requestor',
                     files=['file1.png']
                 )
@@ -435,18 +435,18 @@ def test_retrieve_messages(client):
                     json_payload['tag'],
                 )
                 comments = []
-                for message_id in request_payload['message_ids']:
-                    if message_id == message_one.id:
+                for post_id in request_payload['post_ids']:
+                    if post_id == post_one.id:
                         comments.append(datamodels.Comment(
                             profile=third_profile,
-                            message_id=message_one.id,
+                            post_id=post_one.id,
                             text='This is a comment from third_profile'
                         ))
-                    elif message_id == message_three.id:
+                    elif post_id == post_three.id:
                         comments.append(datamodels.Comment(
                             profile=third_profile,
-                            message_id=message_three.id,
-                            text='This is a comment on message_three from third_profile'
+                            post_id=post_three.id,
+                            text='This is a comment on post_three from third_profile'
                         ))
                 enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
                     third_profile, requested_profile, [comment.as_json() for comment in comments]
@@ -460,7 +460,7 @@ def test_retrieve_messages(client):
                 }), None)
         req.post.side_effect = side_effect
         response = client.post(
-            url_for("external_comms.retrieve_messages"),
+            url_for("external_comms.retrieve_posts"),
             json={
                 'enc_payload': enc_payload,
                 'enc_key': enc_key,
@@ -480,14 +480,14 @@ def test_retrieve_messages(client):
             request_data['tag'],
         )
         assert len(request_payload) == 3
-        response_message = request_payload[0]
-        assert len(response_message['comments']) == 2
-        assert response_message['id'] == message_one.id
-        assert response_message['text'] == message_one.text
-        assert len(response_message['files']) == 1
-        assert response_message['files'][0] == 'test_message_one.png'
+        response_post = request_payload[0]
+        assert len(response_post['comments']) == 2
+        assert response_post['id'] == post_one.id
+        assert response_post['text'] == post_one.text
+        assert len(response_post['files']) == 1
+        assert response_post['files'][0] == 'test_post_one.png'
         requestor_comment = third_person_comment = None
-        for comment in response_message['comments']:
+        for comment in response_post['comments']:
             if comment['profile']['handle'] == requestor_profile.handle:
                 requestor_comment = comment
             elif comment['profile']['handle'] == third_profile.handle:
@@ -495,18 +495,18 @@ def test_retrieve_messages(client):
         assert requestor_comment['text'] == 'This is a comment from requestor'
         assert len(requestor_comment['files']) == 1
         assert requestor_comment['files'][0] == 'file1.png'
-        assert requestor_comment['message_id'] == message_one.id
+        assert requestor_comment['post_id'] == post_one.id
         assert third_person_comment['text'] == 'This is a comment from third_profile'
         assert not third_person_comment['files']
-        assert third_person_comment['message_id'] == message_one.id
-        response_message_two = request_payload[1]
-        assert len(response_message_two['comments']) == 0
-        assert len(response_message_two['files']) == 0
-        assert response_message_two['text'] == message_two.text
-        response_message_three = request_payload[2]
+        assert third_person_comment['post_id'] == post_one.id
+        response_post_two = request_payload[1]
+        assert len(response_post_two['comments']) == 0
+        assert len(response_post_two['files']) == 0
+        assert response_post_two['text'] == post_two.text
+        response_post_three = request_payload[2]
 
-def test_retrieve_messages_failed_comment_retrieval(client):
-    # request to get comments fails, but messages are still returned
+def test_retrieve_posts_failed_comment_retrieval(client):
+    # request to get comments fails, but posts are still returned
     requestor_user = datamodels.User(
         email='requestor@example.com',
         id=datamodels.User.generate_uuid(),
@@ -562,25 +562,25 @@ def test_retrieve_messages_failed_comment_retrieval(client):
         profile=requested_profile,
     )
     third_connection.save()
-    message_one = datamodels.Message(
+    post_one = datamodels.Post(
         profile=requested_profile,
-        text='This is a message',
-        files=['message_one.png'],
+        text='This is a post',
+        files=['post_one.png'],
     )
-    message_one.save()
-    message_two = datamodels.Message(
+    post_one.save()
+    post_two = datamodels.Post(
         profile=requested_profile,
-        text='This is a message without comments or files',
+        text='This is a post without comments or files',
     )
-    message_two.save()
+    post_two.save()
     comment_one_reference = datamodels.CommentReference(
         connection=requested_connection,
-        message_id=message_one.id,
+        post_id=post_one.id,
     )
     comment_one_reference.save()
     comment_two_reference = datamodels.CommentReference(
         connection=third_connection,
-        message_id=message_one.id,
+        post_id=post_one.id,
     )
     comment_two_reference.save()
 
@@ -598,7 +598,7 @@ def test_retrieve_messages_failed_comment_retrieval(client):
             if json_payload['handle'] == requestor_profile.handle:
                 comment = datamodels.Comment(
                     profile=requestor_profile,
-                    message_id=message_one.id,
+                    post_id=post_one.id,
                     text='This is a comment from requestor',
                     files=['file1.png'],
                     created=datetime.now() - timedelta(days=1),
@@ -617,7 +617,7 @@ def test_retrieve_messages_failed_comment_retrieval(client):
                 return MockResponse(500, 'Fake comment retrival server error', None)
         req.post.side_effect = side_effect
         response = client.post(
-            url_for("external_comms.retrieve_messages"),
+            url_for("external_comms.retrieve_posts"),
             json={
                 'enc_payload': enc_payload,
                 'enc_key': enc_key,
@@ -637,21 +637,21 @@ def test_retrieve_messages_failed_comment_retrieval(client):
             request_data['tag'],
         )
         assert len(request_payload) == 2
-        response_message = request_payload[0]
-        assert len(response_message['comments']) == 2
-        assert response_message['id'] == message_one.id
-        assert response_message['text'] == message_one.text
-        assert len(response_message['files']) == 1
-        assert response_message['files'][0] == 'test_message_one.png'
+        response_post = request_payload[0]
+        assert len(response_post['comments']) == 2
+        assert response_post['id'] == post_one.id
+        assert response_post['text'] == post_one.text
+        assert len(response_post['files']) == 1
+        assert response_post['files'][0] == 'test_post_one.png'
         third_person_comment = None
-        for comment in response_message['comments']:
+        for comment in response_post['comments']:
             if comment['profile']['handle'] == third_profile.handle:
                 third_person_comment = comment
         assert third_person_comment['text'] == 'error retrieving comments'
         assert third_person_comment['files'] == []
 
 
-def test_message_notify(client):
+def test_post_notify(client):
     requestor_user = datamodels.User(
         email='requestor@example.com',
         id=datamodels.User.generate_uuid(),
@@ -692,16 +692,16 @@ def test_message_notify(client):
     requested_connection.save()
 
     request_payload = {
-      'message_host': 'localhost',
-      'message_handle': requestor_profile.handle,
-      'message_id': 'mock_message_id',
+      'post_host': 'localhost',
+      'post_handle': requestor_profile.handle,
+      'post_id': 'mock_post_id',
     }
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
         requestor_profile, requestor_connection, request_payload
     )
     # send request to connection's host
     response = client.post(
-        url_for("external_comms.message_notify"),
+        url_for("external_comms.post_notify"),
         json={
             'enc_payload': enc_payload,
             'enc_key': enc_key,
@@ -712,9 +712,10 @@ def test_message_notify(client):
         }
     )
     assert response.status_code == 200
-    message_reference =  datamodels.MessageReference.get(message_id='mock_message_id')
-    assert message_reference.connection == requested_connection
-    assert message_reference.read is None
+    post_reference =  datamodels.PostReference.get(post_id='mock_post_id')
+    assert post_reference.connection == requested_connection
+    assert post_reference.read is False
+    assert post_reference.reference_read is False
 
 def test_comment_created(client):
     requestor_user = datamodels.User(
@@ -757,14 +758,14 @@ def test_comment_created(client):
     requested_connection.save()
     # nothing except the id gets looked at, so not
     # bothering to fully populate
-    message = datamodels.Message()
-    message.save()
-    comment = datamodels.Comment(message_id=message.id)
+    post = datamodels.Post()
+    post.save()
+    comment = datamodels.Comment(post_id=post.id)
     comment.save()
     request_payload = {
       'comment_host': requested_connection.host,
       'comment_handle': requested_connection.handle,
-      'message_id': message.id,
+      'post_id': post.id,
       'comment_id': comment.id,
     }
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
@@ -786,9 +787,9 @@ def test_comment_created(client):
     comment_reference = datamodels.CommentReference.get()
     assert comment_reference is not None
     assert comment_reference.connection == requested_connection
-    assert comment_reference.message_id == message.id
+    assert comment_reference.post_id == post.id
 
-def test_comment_created_no_message(client):
+def test_comment_created_no_post(client):
     requestor_user = datamodels.User(
         email='requestor@example.com',
         id=datamodels.User.generate_uuid(),
@@ -827,11 +828,11 @@ def test_comment_created_no_message(client):
         profile=requested_profile,
     )
     requested_connection.save()
-    message_id = datamodels.Message.generate_uuid()
+    post_id = datamodels.Post.generate_uuid()
     request_payload = {
       'comment_host': requested_connection.host,
       'comment_handle': requested_connection.handle,
-      'message_id': message_id,
+      'post_id': post_id,
       'comment_id': datamodels.Comment.generate_uuid()
     }
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
@@ -850,7 +851,7 @@ def test_comment_created_no_message(client):
         }
     )
     assert response.status_code == 404
-    assert response.data == bytes(f'No message found for id {message_id}', 'utf-8')
+    assert response.data == bytes(f'No post found for id {post_id}', 'utf-8')
     assert datamodels.CommentReference.get() is None
 
 def test_retrieve_comments(client):
@@ -892,11 +893,11 @@ def test_retrieve_comments(client):
         profile=requested_profile,
     )
     requested_connection.save()
-    message_ids = ['message_1', 'message_2']
+    post_ids = ['post_1', 'post_2']
     for i in range(5):
         comment = datamodels.Comment(
             profile=requested_profile,
-            message_id=message_ids[0],
+            post_id=post_ids[0],
             text=f'This is comment number {i+1}',
             files=[f'file-{i+1}.txt']
         )
@@ -904,7 +905,7 @@ def test_retrieve_comments(client):
     for i in range(5,10):
         comment = datamodels.Comment(
             profile=requested_profile,
-            message_id=message_ids[1],
+            post_id=post_ids[1],
             text=f'This is comment number {i+1}',
             files=[f'file-{i+1}.txt']
         )
@@ -912,7 +913,7 @@ def test_retrieve_comments(client):
     request_payload = {
       'host': 'localhost',
       'handle': requestor_profile.handle,
-      'message_ids': message_ids,
+      'post_ids': post_ids,
     }
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
         requestor_profile, requestor_connection, request_payload
@@ -942,5 +943,5 @@ def test_retrieve_comments(client):
     assert any(comment['text'] == 'This is comment number 1' for comment in request_payload)
     assert any(comment['text'] == 'This is comment number 6' for comment in request_payload)
     assert all(comment['profile']['handle'] == 'requestee' for comment in request_payload)
-    assert sum(comment['message_id'] == message_ids[0] for comment in request_payload) == 5
-    assert sum(comment['message_id'] == message_ids[1] for comment in request_payload) == 5
+    assert sum(comment['post_id'] == post_ids[0] for comment in request_payload) == 5
+    assert sum(comment['post_id'] == post_ids[1] for comment in request_payload) == 5

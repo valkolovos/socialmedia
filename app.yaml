@@ -1,4 +1,4 @@
-runtime: python38
+runtime: python39
 
 handlers:
   # This handler routes all requests not caught above to your main app. It is

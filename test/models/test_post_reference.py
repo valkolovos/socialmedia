@@ -3,7 +3,7 @@ from socialmedia import connection_status
 from socialmedia.models import CommentReference, Connection, PostReference
 
 def test_constructor():
-    comment_reference = CommentReference(
+    post_reference = PostReference(
         connection=Connection(
             host='abc.xyz',
             status=connection_status.CONNECTED,
@@ -11,13 +11,13 @@ def test_constructor():
         post_id='post_id',
         read=False,
     )
-    assert comment_reference.connection.host == 'abc.xyz'
-    assert comment_reference.post_id == 'post_id'
-    assert not comment_reference.read
-    assert type(comment_reference.created) == datetime
+    assert post_reference.connection.host == 'abc.xyz'
+    assert post_reference.post_id == 'post_id'
+    assert not post_reference.read
+    assert type(post_reference.created) == datetime
 
 def test_str():
-    comment_reference = CommentReference(
+    post_reference = PostReference(
         connection=Connection(
             host='abc.xyz',
             status=connection_status.CONNECTED,
@@ -25,13 +25,13 @@ def test_str():
         post_id='post_id',
         read=False,
     )
-    expected_str = f'connection: {{ {str(comment_reference.connection)} }}, ' \
-            f'post_id: {comment_reference.post_id}, '\
-            f'read: {comment_reference.read}, created: {comment_reference.created}'
-    assert str(comment_reference) == expected_str
+    expected_str = f'connection: {{ {str(post_reference.connection)} }}, ' \
+            f'post_id: {post_reference.post_id}, '\
+            f'read: {post_reference.read}, created: {post_reference.created}'
+    assert str(post_reference) == expected_str
 
 def test_repr():
-    comment_reference = CommentReference(
+    post_reference = PostReference(
         connection=Connection(
             host='abc.xyz',
             status=connection_status.CONNECTED,
@@ -39,13 +39,13 @@ def test_repr():
         post_id='post_id',
         read=False,
     )
-    expected_repr = f'CommentReference(connection: {{ {repr(comment_reference.connection)} }}, ' \
-            f'post_id: {comment_reference.post_id}, '\
-            f'read: {comment_reference.read}, created: {comment_reference.created})'
-    assert repr(comment_reference) == expected_repr
+    expected_repr = f'PostReference(connection: {{ {repr(post_reference.connection)} }}, ' \
+            f'post_id: {post_reference.post_id}, '\
+            f'read: {post_reference.read}, created: {post_reference.created})'
+    assert repr(post_reference) == expected_repr
 
 def test_eq():
-    comment_reference_one = CommentReference(
+    post_reference_one = PostReference(
         connection=Connection(
             host='abc.xyz',
             status=connection_status.CONNECTED,
@@ -53,13 +53,13 @@ def test_eq():
         post_id='post_id',
         read=False,
     )
-    comment_reference_two = CommentReference(
+    post_reference_one = PostReference(
         connection=Connection(
-            id=comment_reference_one.connection.id,
+            id=post_reference_one.connection.id,
             host='abc.xyz',
             status=connection_status.CONNECTED,
-            created=comment_reference_one.connection.created,
-            updated=comment_reference_one.connection.updated,
+            created=post_reference_one.connection.created,
+            updated=post_reference_one.connection.updated,
         ),
         post_id='post_id',
         read=True,
@@ -67,10 +67,10 @@ def test_eq():
     )
     # read values are not part of the equality check
     # neither is creation
-    assert comment_reference_one == comment_reference_two
+    assert post_reference_one == post_reference_one
 
 def test_not_eq():
-    comment_reference_one = CommentReference(
+    post_reference_one = PostReference(
         connection=Connection(
             host='abc.xyz',
             status=connection_status.CONNECTED,
@@ -78,20 +78,20 @@ def test_not_eq():
         post_id='post_id',
         read=False,
     )
-    comment_reference_two = CommentReference(
+    post_reference_two = PostReference(
         connection=Connection(
-            id=comment_reference_one.connection.id,
+            id=post_reference_one.connection.id,
             host='abc.xyz',
             status=connection_status.CONNECTED,
-            created=comment_reference_one.connection.created,
-            updated=comment_reference_one.connection.updated,
+            created=post_reference_one.connection.created,
+            updated=post_reference_one.connection.updated,
         ),
         post_id='different_post_id'
     )
-    assert comment_reference_one != comment_reference_two
+    assert post_reference_one != post_reference_two
 
 def test_post_reference_not_comment_reference():
-    # because CommentReference and postReference share the exact
+    # because CommentReference and PostReference share the exact
     # same attributes, need to ensure that they are not considered equal
     comment_reference = CommentReference(
         connection=Connection(
@@ -112,4 +112,5 @@ def test_post_reference_not_comment_reference():
         post_id='post_id',
         read=False,
     )
-    assert comment_reference != post_reference
+    assert post_reference != comment_reference
+

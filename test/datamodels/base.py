@@ -10,9 +10,23 @@ class BaseTestModel():
         for e in cls._data:
             if type(e) != cls:
                 continue
-            matched = True
+            # if no kwargs passed in and type matches, we're good
+            matched = len(kwargs.items()) == 0
             for k, v in kwargs.items():
-                if not hasattr(e, k) or not getattr(e,k) == v:
+                if hasattr(e, k) and getattr(e,k) == v:
+                    matched = True
+                elif isinstance(v, BaseTestModel):
+                    # check if child BaseTestModel objects have the expected value
+                    obj_attrs = [attr for attr in dir(e) if not attr.startswith('_')]
+                    for attr_name in obj_attrs:
+                        if (
+                            isinstance(getattr(e, attr_name), BaseTestModel) and
+                            hasattr(getattr(e, attr_name), k) and
+                            getattr(getattr(e, attr_name), k) == v
+                        ):
+                            matched = True
+                            continue
+                else:
                     matched = False
             if matched:
                 return e
@@ -23,11 +37,24 @@ class BaseTestModel():
         for e in cls._data:
             if type(e) != cls:
                 continue
-            matched = True
             if 'order' in kwargs:
                 del kwargs['order']
+            matched = len(kwargs.items()) == 0
             for k, v in kwargs.items():
-                if not hasattr(e, k) or not getattr(e,k) == v:
+                if hasattr(e, k) and getattr(e,k) == v:
+                    matched = True
+                elif isinstance(v, BaseTestModel):
+                    # check if child BaseTestModel objects have the expected value
+                    obj_attrs = [attr for attr in dir(e) if not attr.startswith('_')]
+                    for attr_name in obj_attrs:
+                        if (
+                            isinstance(getattr(e, attr_name), BaseTestModel) and
+                            hasattr(getattr(e, attr_name), k) and
+                            getattr(getattr(e, attr_name), k) == v
+                        ):
+                            matched = True
+                            continue
+                else:
                     matched = False
             if matched:
                 response.append(e)

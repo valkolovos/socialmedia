@@ -2,18 +2,18 @@ from uuid import uuid4
 
 from google.cloud import datastore
 
-from socialmedia.models import MessageReference as BaseMessageReference
+from socialmedia.models import PostReference as BasePostReference
 from socialmedia.datastore.mixins import DatastoreBase
 
 from .connection import Connection
 from .dataclient import datastore_client
 
-class MessageReference(BaseMessageReference, DatastoreBase):
-    kind = 'MessageReference'
+class PostReference(BasePostReference, DatastoreBase):
+    kind = 'PostReference'
 
     def save(self):
         if not hasattr(self,'key'):
-            key = datastore_client.key('MessageReference', str(uuid4()),
+            key = datastore_client.key('PostReference', str(uuid4()),
                 parent=getattr(self.connection, 'key')
                 if self.connection and hasattr(self.connection, 'key')
                 else None
@@ -27,8 +27,9 @@ class MessageReference(BaseMessageReference, DatastoreBase):
 
     def as_dict(self):
         return {
-            'message_id': self.message_id,
+            'post_id': self.post_id,
             'read': self.read,
+            'reference_read': self.reference_read,
             'created': self.created
         }
 
