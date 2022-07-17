@@ -6,8 +6,10 @@ import os
 import requests
 
 # pip install google-auth
+from google.auth import default as auth_default
+from google.auth.transport.requests import Request
 from google.oauth2 import service_account
-from google.cloud import storage, tasks_v2
+from google.cloud import secretmanager, storage, tasks_v2
 
 def generate_signed_urls(files, expiration=60):
     if expiration > 604800:
@@ -60,3 +62,40 @@ class TaskManager():
                 'http://localhost:8080{}'.format(relative_uri),
                 json=payload
             )
+
+def get_shas():
+    project_name = auth_default()[1]
+    secret_client = secretmanager.SecretManagerServiceClient()
+    backend_sha_response = secret_client.access_secret_version(
+        name=f'projects/{project_name}/secrets/backend-sha/versions/latest'
+    )
+    frontend_sha_response = secret_client.access_secret_version(
+        name=f'projects/{project_name}/secrets/frontend-sha/versions/latest'
+    )
+    return {
+        **json.loads(backend_sha_response.payload.data.decode('utf-8')),
+        **json.loads(frontend_sha_response.payload.data.decode('utf-8'))
+    }
+
+def update_backend():
+    creds, project = auth_default(
+        scopes=['https://www.googleapis.com/auth/cloud-platform']
+    )
+    creds.refresh(Request())
+    resp = requests.post(
+        f'https://us-central1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/{project}/jobs/freme-backend-update:run',
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {creds.token}'},
+        data={}
+    )
+
+def update_frontend():
+    creds, project = auth_default(
+        scopes=['https://www.googleapis.com/auth/cloud-platform']
+    )
+    creds.refresh(Request())
+    resp = requests.post(
+        f'https://us-central1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/{project}/jobs/freme-frontend-update:run',
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {creds.token}'},
+        data={}
+    )
+

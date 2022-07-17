@@ -6,6 +6,7 @@ pycryptodome==3.14.1
 python-dateutil==2.8.2
 google-cloud-tasks==2.9.1
 google-cloud-storage==2.4.0
+google-cloud-secret-manager==2.11.1
 #google-python-cloud-debugger
 sortedcontainers==2.4.0
 dateparser==1.1.1

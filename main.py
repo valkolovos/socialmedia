@@ -2,7 +2,13 @@ import os
 
 from socialmedia import create_app, datastore as gcloud_datastore
 from socialmedia.gcloud.gcs_object_stream_upload import gcs_stream_factory
-from socialmedia.gcloud.utils import generate_signed_urls, TaskManager
+from socialmedia.gcloud.utils import (
+    generate_signed_urls,
+    get_shas,
+    TaskManager,
+    update_backend,
+    update_frontend,
+)
 
 from google.cloud import datastore
 
@@ -21,7 +27,10 @@ app = create_app(
     TaskManager(
         datastore.Client().project, 'us-west2',
         os.environ.get('ASYNC_TASKS', 'true').lower() == 'true'
-    )
+    ),
+    get_shas,
+    update_backend,
+    update_frontend,
 )
 
 if __name__ == '__main__':

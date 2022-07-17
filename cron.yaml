@@ -1,0 +1,4 @@
+cron:
+  - description: "daily check for update"
+    url: /update/
+    schedule: every day 01:00

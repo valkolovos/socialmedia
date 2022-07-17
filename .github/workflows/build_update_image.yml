@@ -1,8 +1,10 @@
+# Google Cloud Workload Identity Federation Docs
+# https://github.com/google-github-actions/auth#setting-up-workload-identity-federation
 name: Build docker container for auto-update
 on:
   push:
     branches:
-      - master
+      - main
       - auto_update
     paths:
       - update/**
