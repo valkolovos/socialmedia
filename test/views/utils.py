@@ -14,7 +14,11 @@ def generate_signed_urls(files, expiration=60):
 
 @pytest.fixture
 def client():
-    app = create_app(datamodels, None, generate_signed_urls, Mock())
+#def create_app(
+#    model_datastore, stream_factory, url_signer, task_manager, get_shas,
+#    update_backend, update_frontend,
+#):
+    app = create_app(datamodels, None, generate_signed_urls, Mock(), Mock(), Mock(), Mock())
     with app.test_client() as client:
         # init the flask app context
         client.get('/')
