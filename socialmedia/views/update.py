@@ -16,7 +16,7 @@ blueprint = Blueprint('update', __name__)
 def update_app():
     if current_user.is_authenticated:
         requesting_user = session.get('authenticated_user')
-        if requesting_user or not requesting_user.get('admin'):
+        if not requesting_user or not requesting_user.get('admin'):
             return 'Not authorized', 401
     elif not request.headers.get('X-Appengine-Cron') == 'true':
         return 'Not authorized', 401
