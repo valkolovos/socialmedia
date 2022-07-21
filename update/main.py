@@ -29,6 +29,9 @@ def main():
         project_name = re_match.group(1)
 
         print('Enabling services...')
+        print('  Enabling appengine service')
+        retry_command('gcloud services enable appengine.googleapis.com')
+
         print('  Enabling cloudbuild service')
         retry_command('gcloud services enable cloudbuild.googleapis.com')
 
