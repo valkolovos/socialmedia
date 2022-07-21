@@ -28,6 +28,25 @@ def main():
         re_match = project_re.search(project_result)
         project_name = re_match.group(1)
 
+        emit('installEvent', {'message': 'Enabling services...'})
+        emit('installEvent', {'message': '  Enabling cloudbuild service'})
+        retry_command('gcloud services enable cloudbuild.googleapis.com')
+
+        emit('installEvent', {'message': '  Enabling cloudtasks service'})
+        retry_command('gcloud services enable cloudtasks.googleapis.com')
+
+        emit('installEvent', {'message': '  Enabling cloudscheduler service'})
+        retry_command('gcloud services enable cloudscheduler.googleapis.com')
+
+        emit('installEvent', {'message': '  Enabling secretmanager service'})
+        retry_command('gcloud services enable secretmanager.googleapis.com')
+
+        emit('installEvent', {'message': '  Enabling run service'})
+        retry_command('gcloud services enable run.googleapis.com')
+
+        emit('installEvent', {'message': 'Done enabling services'})
+
+
         try:
             check_for_queues_response = retry_command('gcloud tasks queues list --quiet')
         except Exception:
