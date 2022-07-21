@@ -11,15 +11,14 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from google.cloud import secretmanager, storage, tasks_v2
 
-def generate_signed_urls(files, expiration=60):
+def generate_signed_urls(files, expiration=3000):
     if expiration > 604800:
         raise Exception('Expiration Time can\'t be longer than 604800 seconds (7 days).')
+    credentials, project_id = auth_default()
+    if credentials.token is None:
+        credentials.refresh(Request())
     storage_client = storage.Client()
     bucket = storage_client.bucket(f'{storage_client.project}.appspot.com')
-    creds_file = '/srv/service-account-creds.json'
-    if os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'):
-        creds_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-    credentials = service_account.Credentials.from_service_account_file(creds_file)
 
     signed_urls = []
     for file in files:
@@ -27,7 +26,8 @@ def generate_signed_urls(files, expiration=60):
         signed_url = blob.generate_signed_url(
             version='v4',
             expiration=datetime.timedelta(seconds=expiration),
-            credentials=credentials,
+            service_account_email=credentials.service_account_email,
+            access_token=credentials.token,
             method="GET"
         )
         signed_urls.append(signed_url)
