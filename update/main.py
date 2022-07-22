@@ -47,6 +47,9 @@ def main():
         print('  Enabling run service')
         retry_command('gcloud services enable run.googleapis.com')
 
+        print('  Enabling iamcredentials service')
+        retry_command('gcloud services enable iamcredentials.googleapis.com')
+
         print('Done enabling services')
 
 
