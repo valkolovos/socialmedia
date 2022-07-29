@@ -25,4 +25,6 @@ jobs:
         id: extract_branch
 
       - name: Test with pytest
-        run: PYTHONPATH=$(pwd) pytest test -vv
+        run: |
+          echo "${{ steps.extract_branch.outputs.branch }}"
+          PYTHONPATH=$(pwd) pytest test -vv
