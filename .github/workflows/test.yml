@@ -25,6 +25,14 @@ jobs:
         id: extract_branch
 
       - name: Test with pytest
+        run: PYTHONPATH=$(pwd) pytest --cov=socialmedia --cov-report html test -vv
+
+      - name: setup git config
         run: |
-          echo "${{ steps.extract_branch.outputs.branch }}"
-          PYTHONPATH=$(pwd) pytest test -vv
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+
+      - name: commit code coverage
+        run: |
+          git commit -m "code coverage from action bot" htmlcov
+          git push origin ${{ steps.extract_branch.outputs.branch }}
