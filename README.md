@@ -6,9 +6,11 @@ For now, the only supported platform is Google Cloud. Documentation is spotty at
 # Prerequisites
 You'll need to have python3.8 or higher installed.
 
-You'll need to have a [Google Cloud](https://cloud.google.com) account and the `gcloud` command-line tool - [installation instructions](https://cloud.google.com/sdk/docs/install).
+You'll need to have a [Google Cloud](https://cloud.google.com) account.
 
 You'll also need to have an active billing account, which will require a credit card. Add and activate a billing account through the [Google Cloud Console](https://console.cloud.google.com) using the Billing menu option. Google Cloud currently provides a free trial with $300 credit.
+
+If you want to develop and run locally, you'll need the `gcloud` command-line tool - [installation instructions](https://cloud.google.com/sdk/docs/install).
 
 # Install
 You'll need to ensure you've cloned this repo and that you're logged in to Google Cloud with the credentials you used to set up your account:
@@ -53,6 +55,9 @@ Asynchronous operations (such as notifications) are implemented as Cloud Tasks. 
 # Web-based App
 All the HTML for the web-based app is contained in the `templates` directory. Javascript is in `static`.
 
+# Code coverage
+Code coverage is stored in the `htmlcov` directory. To view, you can go to https://htmlpreview.github.io/. Here is a link for [coverage for the main branch](https://htmlpreview.github.io/?https://github.com/valkolovos/socialmedia/blob/main/htmlcov/index.html)
+
 # TODO
 * Document APIs
 * Provide approval mechanism for new users
@@ -61,3 +66,4 @@ All the HTML for the web-based app is contained in the `templates` directory. Ja
 * Allow for public posts
 * Implement connection grouping to allow for more targeted permissions
 * So much more
+
