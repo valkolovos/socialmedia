@@ -16,5 +16,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r test-requirements.txt
+      - name: Extract branch name
+          shell: bash
+          run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+          id: extract_branch
       - name: Test with pytest
-        run: PYTHONPATH=$(pwd) pytest test -vv
+        run: |
+          echo eng:${{ steps.extract_branch.outputs.branch }}
+          PYTHONPATH=$(pwd) pytest test -vv
