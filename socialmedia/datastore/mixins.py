@@ -1,3 +1,5 @@
+import inspect
+
 from datetime import datetime
 
 from .dataclient import datastore_client
@@ -30,7 +32,11 @@ class DatastoreBase:
         obj = None
         if results:
             obj = cls._build_obj(results[0])
-        print(f'[datastore] get({cls.kind}, {kwargs}): {(datetime.now() - _timer).total_seconds()}')
+        stack = inspect.stack()
+        print(
+            f'[datastore] {stack[1].filename.split("/")[-1]}:{stack[1].function}:{stack[1].lineno} '
+            f'get({cls.kind}, {kwargs}): {(datetime.now() - _timer).total_seconds()}'
+        )
         return obj
 
     @classmethod
@@ -54,7 +60,11 @@ class DatastoreBase:
             for result in results:
                 if hasattr(result, key):
                     setattr(result, key, value)
-        print(f'[datastore] list({cls.kind}, {kwargs}): {(datetime.now() - _timer).total_seconds()}')
+        stack = inspect.stack()
+        print(
+            f'[datastore] {stack[1].filename.split("/")[-1]}:{stack[1].function}:{stack[1].lineno} '
+            f'list({cls.kind}, {kwargs}): {(datetime.now() - _timer).total_seconds()}'
+        )
         return results
 
     @classmethod
@@ -63,6 +73,7 @@ class DatastoreBase:
         executes a search using provided keywords
         if 'order' exists in kwargs, the value will be used as sort
         '''
+        _timer = datetime.now()
         query = datastore_client.query(kind=cls.kind)
         kwarg_objects = {key: value for (key, value) in kwargs.items() if isinstance(value, DatastoreBase)}
         if 'order' in kwargs:
@@ -73,6 +84,11 @@ class DatastoreBase:
             else:
                 query.add_filter(key, '=', value)
         query.keys_only()
+        stack = inspect.stack()
+        print(
+            f'[datastore] {stack[1].filename.split("/")[-1]}:{stack[1].function}:{stack[1].lineno} '
+            f'count({cls.kind}, {kwargs}): {(datetime.now() - _timer).total_seconds()}'
+        )
         return len(list(query.fetch()))
 
     @classmethod

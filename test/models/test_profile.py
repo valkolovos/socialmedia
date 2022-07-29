@@ -22,32 +22,42 @@ def test_str():
     profile = Profile(
         display_name = 'Display Name',
         handle = 'handle',
-        user_id = 'user_id'
+        user_id = 'user_id',
+        image = 'image',
+        cover_image = 'cover_image',
     )
     expected_str = f'display_name: {profile.display_name}, handle: {profile.handle}, ' \
-        f'user_id: {profile.user_id}, created: {profile.created}'
+        f'user_id: {profile.user_id}, image: {profile.image}, ' \
+        f'cover_image: {profile.cover_image}, created: {profile.created}'
     assert str(profile) == expected_str
 
 def test_repr():
     profile = Profile(
         display_name = 'Display Name',
         handle = 'handle',
-        user_id = 'user_id'
+        user_id = 'user_id',
+        image = 'image',
+        cover_image = 'cover_image',
     )
     expected_repr =  f'Profile(display_name: {profile.display_name}, handle: {profile.handle}, ' \
-        f'user_id: {profile.user_id}, public_key: {profile.public_key}, created: {profile.created})'
+        f'user_id: {profile.user_id}, image: {profile.image}, cover_image: {profile.cover_image}, ' \
+        f'public_key: {profile.public_key}, created: {profile.created})'
     assert repr(profile) == expected_repr
 
 def test_eq():
     profile_one = Profile(
         display_name = 'Display Name',
         handle = 'handle',
-        user_id = 'user_id'
+        user_id = 'user_id',
+        image = 'image',
+        cover_image = 'cover_image',
     )
     profile_two = Profile(
         display_name = 'Display Name',
         handle = 'handle',
         user_id = 'user_id',
+        image = 'image',
+        cover_image = 'cover_image',
         public_key = profile_one.public_key,
         private_key = profile_one.private_key,
         created = profile_one.created,

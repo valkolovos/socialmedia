@@ -13,7 +13,9 @@ from flask import (
 from flask_login import logout_user
 
 import asyncio
+import base64
 import json
+import re
 import requests
 from werkzeug import formparser
 from werkzeug.utils import secure_filename
@@ -40,15 +42,15 @@ def validate_session(user_id):
 
 @blueprint.route('/sign-out')
 def sign_out():
-    session.clear()
     if hasattr(current_app, 'login_manager'):
         logout_user()
+    session.clear()
     return 'signed out', 200
 
 @blueprint.route('/get-posts')
 @verify_user
 def get_posts(user_id):
-    current_profile = current_app.datamodels.Profile.get(user_id=session['user']['user_id'])
+    current_profile = request.current_profile
     comment_references = defaultdict(list)
     posts = current_app.datamodels.Post.list(profile=current_profile, order=['-created'])
     for post in posts:
@@ -64,7 +66,7 @@ def get_posts(user_id):
 @blueprint.route('/get-connection-posts/<connection_id>')
 @verify_user
 def get_connection_posts(user_id, connection_id):
-    current_profile = current_app.datamodels.Profile.get(user_id=session['user']['user_id'])
+    current_profile = request.current_profile
     connection = current_app.datamodels.Connection.get(id=connection_id)
     if not connection:
         return f'No connection found ({connection_id})', 404
@@ -98,7 +100,7 @@ def get_connection_posts(user_id, connection_id):
 @verify_user
 def create_post(user_id):
     stream,form,files = formparser.parse_form_data(request.environ, stream_factory=current_app.stream_factory)
-    current_profile = current_app.datamodels.Profile.get(user_id=session['user']['user_id'])
+    current_profile = request.current_profile
     # the custom stream factories _should_ be using 'secure_filename' when processing,
     # so need to make sure the post filenames are the same
     #
@@ -176,7 +178,7 @@ def request_connection(user_id):
 @blueprint.route('/get-connection-info')
 @verify_user
 def get_connection_info(user_id):
-    current_profile = current_app.datamodels.Profile.get(user_id=session['user']['user_id'])
+    current_profile = request.current_profile
     async def get_post_count(connection):
         post_references = current_app.datamodels.PostReference.list(
             connection=connection
@@ -227,7 +229,7 @@ def get_connection_info(user_id):
 @blueprint.route('/mark-post-read/<post_id>')
 @verify_user
 def mark_post_read(user_id, post_id):
-    current_profile = current_app.datamodels.Profile.get(user_id=user_id)
+    current_profile = request.current_profile
     post_reference = current_app.datamodels.PostReference.get(
         post_id=post_id, profile=current_profile
     )
@@ -251,7 +253,7 @@ def mark_connection_read(user_id, connection_id):
 @blueprint.route('/mark-post-reference-read/<post_id>')
 @verify_user
 def mark_post_reference_read(user_id, post_id):
-    current_profile = current_app.datamodels.Profile.get(user_id=user_id)
+    current_profile = request.current_profile
     post_reference = current_app.datamodels.PostReference.get(
         post_id=post_id, profile=current_profile
     )
@@ -264,7 +266,7 @@ def mark_post_reference_read(user_id, post_id):
 @blueprint.route('/add-comment/<post_id>', methods=['POST'])
 @verify_user
 def add_comment(user_id, post_id):
-    current_profile = current_app.datamodels.Profile.get(user_id=session['user']['user_id'])
+    current_profile = request.current_profile
     stream,form,files = formparser.parse_form_data(request.environ, stream_factory=current_app.stream_factory)
     connection = None
     if not current_app.datamodels.Post.get(id=post_id, profile=current_profile):
@@ -291,6 +293,27 @@ def add_comment(user_id, post_id):
         current_app.task_manager.queue_task(payload, 'comment-created', url_for('queue_workers.comment_created'))
     comment.files = current_app.url_signer(files)
     return jsonify(comment.as_json())
+
+
+@blueprint.route('/update-profile-images', methods=['OPTIONS'])
+def update_profile_images_options():
+    return '', 200
+
+@blueprint.route('/update-profile-images', methods=['POST'])
+@verify_user
+def update_profile_images(user_id):
+    current_profile = request.current_profile
+    profile_json = current_profile.as_json()
+    if request.form.get('profileImage'):
+        filename = _upload(request.form['profileImage'], 'profile', current_profile)
+        current_profile.image = filename
+        profile_json['image'] = current_app.url_signer([current_profile.image], 7200)[0]
+    if request.form.get('coverImage'):
+        filename = _upload(request.form['coverImage'], 'cover', current_profile)
+        current_profile.cover_image = filename
+        profile_json['cover_image'] = current_app.url_signer([current_profile.cover_image], 7200)[0]
+    current_profile.save()
+    return profile_json, 200
 
 class SecureRequestException(Exception):
     def __init__(self, response):
@@ -329,3 +352,17 @@ def _perform_secure_request(url, current_profile, payload, connection):
         return response_payload
     else:
         raise SecureRequestException(response)
+
+def _upload(image_data, image_type, current_profile):
+    # data is in format "data:[content_type];[encoding],[base64 data]"
+    m = re.search(r'data:([^;]*);[^,]*,(.*)', image_data)
+    content_type, b64_data = m.groups()
+    img_binary_data = base64.b64decode(b64_data)
+    filename = secure_filename(f'{current_profile.user_id}-{image_type}.{content_type.split("/")[1]}')
+    stream = current_app.stream_factory(
+        len(img_binary_data), filename, content_type
+    )
+    stream.write(img_binary_data)
+    stream.stop()
+    return filename
+

@@ -26,6 +26,8 @@ class Profile(BaseProfile, DatastoreBase):
             'display_name': self.display_name,
             'handle': self.handle,
             'user_id': self.user_id,
+            'image': self.image,
+            'cover_image': self.cover_image,
             'public_key': self.public_key,
             'private_key': self.private_key,
             'created': self.created,

@@ -1,21 +1,20 @@
 import json
 
 from collections import namedtuple
-from flask import url_for
 from io import BytesIO
 from unittest import mock
+
+from flask import url_for, request
+from flask_login import AUTH_HEADER_NAME
 
 from socialmedia import connection_status
 from socialmedia.views.utils import enc_and_sign_payload
 from test import datamodels
-from .utils import client
+from .utils import client, create_token
 
 MockResponse = namedtuple('NamedResponse', ['status_code', 'content'])
 
 def test_get_posts(client):
-    # not adding either of these to test.datamodels
-    # because an authenticated_user in the session
-    # should not need to be retrieved
     user = datamodels.User(
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
@@ -33,13 +32,8 @@ def test_get_posts(client):
         files=['attachment.png']
     )
     post.save()
-    # need to set a user id in the session
-    # this will also call socialmedia.views.auth.load_user
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    response = client.get('/get-posts')
+    token = create_token(client, user)
+    response = client.get('/get-posts', headers={AUTH_HEADER_NAME: token})
     assert response.status_code == 200
     json_response = json.loads(response.data)
     assert len(json_response) == 1
@@ -61,15 +55,15 @@ def test_create_post(client):
         user_id=user.id,
     )
     profile.save()
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    client.get('/')
+    token = create_token(client, user)
     response = client.post(url_for('main.create_post'), data={
-        'post': 'This is a test post',
-        'file-1': (BytesIO(b'file data'), 'filename.txt')
-    }, content_type='multipart/form-data')
+            'post': 'This is a test post',
+            'file-1': (BytesIO(b'file data'), 'filename.txt')
+        }, content_type='multipart/form-data',
+        headers = {
+            AUTH_HEADER_NAME: token
+        }
+    )
     assert response.status_code == 200
     post = datamodels.Post.get(profile=profile)
     assert post.text == 'This is a test post'
@@ -129,10 +123,6 @@ def test_get_connection_posts(client):
     enc_payload, enc_key, signature, nonce, tag = enc_and_sign_payload(
         other_profile, other_connection, [post.as_json()]
     )
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
     with mock.patch('socialmedia.views.main.requests') as req:
         req.post.return_value = MockResponse(
             200,
@@ -144,9 +134,10 @@ def test_get_connection_posts(client):
                 'tag': tag
             })
         )
-        client.get('/')
+        token = create_token(client, user)
         response = client.get(
-            url_for('main.get_connection_posts', connection_id=connection.id)
+            url_for('main.get_connection_posts', connection_id=connection.id),
+            headers = {AUTH_HEADER_NAME: token}
         )
         assert response.status_code == 200
         json_response = response.json
@@ -169,13 +160,10 @@ def test_get_connection_posts_no_connection(client):
         user_id=user.id,
     )
     profile.save()
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    client.get('/')
+    token = create_token(client, user)
     response = client.get(
-        url_for('main.get_connection_posts', connection_id='mock_connection')
+        url_for('main.get_connection_posts', connection_id='mock_connection'),
+        headers={AUTH_HEADER_NAME: token}
     )
     assert response.status_code == 404
     assert response.data == b'No connection found (mock_connection)'
@@ -210,15 +198,12 @@ def test_get_connection_posts_failed_response(client):
         status=connection_status.CONNECTED,
     )
     connection.save()
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
     with mock.patch('socialmedia.views.main.requests') as req:
         req.post.return_value = MockResponse(404, 'No connection found')
-        client.get('/')
+        token = create_token(client, user)
         response = client.get(
-            url_for('main.get_connection_posts', connection_id=connection.id)
+            url_for('main.get_connection_posts', connection_id=connection.id),
+            headers={AUTH_HEADER_NAME: token}
         )
         assert response.status_code == 404
         assert response.data == b'Failed to retrieve connection posts'
@@ -266,18 +251,15 @@ def test_get_connection_posts_bad_response(client):
         text='test_get_connection_posts',
         files=['get_connection_posts_attachment.png']
     )
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
     with mock.patch('socialmedia.views.main.requests') as req:
         req.post.return_value = MockResponse(
             200,
             json.dumps(post.as_json())
         )
-        client.get('/')
+        token = create_token(client, user)
         response = client.get(
-            url_for('main.get_connection_posts', connection_id=connection.id)
+            url_for('main.get_connection_posts', connection_id=connection.id),
+            headers={AUTH_HEADER_NAME: token}
         )
         assert response.status_code == 500
         assert response.data == b"Failed to decode response: 'enc_key'"
@@ -317,13 +299,10 @@ def test_mark_post_read(client):
         post_id='mock_post_id',
     )
     post_reference.save()
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    client.get('/')
+    token = create_token(client, user)
     response = client.get(
-        url_for('main.mark_post_read', post_id=post_reference.post_id)
+        url_for('main.mark_post_read', post_id=post_reference.post_id),
+        headers={AUTH_HEADER_NAME: token}
     )
     assert response.status_code == 200
     assert post_reference.read
@@ -340,13 +319,10 @@ def test_mark_post_read_no_notification(client):
         user_id=user.id,
     )
     profile.save()
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    client.get('/')
+    token = create_token(client, user)
     response = client.get(
-        url_for('main.mark_post_read', post_id='does not exist')
+        url_for('main.mark_post_read', post_id='does not exist'),
+        headers={AUTH_HEADER_NAME: token}
     )
     assert response.status_code == 404
     assert response.data == b'No such post id (does not exist)'
@@ -381,20 +357,17 @@ def test_add_comment(client):
         status=connection_status.CONNECTED,
     )
     connection.save()
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
     post_id = 'mock_post_id'
     comment_text = 'test comment'
-    client.get('/')
+    token = create_token(client, user)
     response = client.post(
         url_for('main.add_comment', post_id=post_id),
         data={
             'connectionId': connection.id,
             'comment': comment_text,
             'file-1': (BytesIO(b'file data'), 'filename.txt')
-        }
+        },
+        headers={AUTH_HEADER_NAME: token}
     )
     assert response.status_code == 200
     comment = datamodels.Comment.get()
@@ -428,19 +401,16 @@ def test_add_comment_no_connection(client):
         user_id=user.id,
     )
     profile.save()
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    client.get('/')
     post_id = 'mock_post_id'
     comment = 'test comment'
+    token = create_token(client, user)
     response = client.post(
         url_for('main.add_comment', post_id=post_id),
         data={
             'connectionId': 'does not exist',
             'comment': comment
-        }
+        },
+        headers={AUTH_HEADER_NAME: token}
     )
     assert not client.application.task_manager.queue_task.called
     assert response.status_code == 404

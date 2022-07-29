@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta
+
 import pytest
+import jwt
 
 from flask import _request_ctx_stack
 
@@ -21,3 +24,17 @@ def client():
         yield client
     # clean up test data
     BaseTestModel._data = []
+
+
+def create_token(client, user):
+    token = jwt.encode(
+        {
+            'exp': datetime.utcnow() + timedelta(hours=6),
+            'iat': datetime.utcnow(),
+            'sub': user.id,
+        },
+        client.application.config.get('SECRET_KEY'),
+        algorithm="HS256"
+    )
+    return token
+

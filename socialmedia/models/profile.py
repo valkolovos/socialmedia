@@ -10,6 +10,8 @@ class Profile():
         self.display_name = kwargs.get('display_name')
         self.handle = kwargs.get('handle')
         self.user_id = kwargs.get('user_id')
+        self.image = kwargs.get('image')
+        self.cover_image = kwargs.get('cover_image')
         self.public_key = kwargs.get('public_key')
         self.private_key = kwargs.get('private_key')
         self.created = kwargs.get('created', now)
@@ -24,11 +26,11 @@ class Profile():
 
     def __str__(self):
         return f'display_name: {self.display_name}, handle: {self.handle}, user_id: {self.user_id}, ' \
-            f'created: {self.created}'
+            f'image: {self.image}, cover_image: {self.cover_image}, created: {self.created}'
 
     def __repr__(self):
         return f'Profile(display_name: {self.display_name}, handle: {self.handle}, user_id: {self.user_id}, ' \
-            f'public_key: {self.public_key}, created: {self.created})'
+            f'image: {self.image}, cover_image: {self.cover_image}, public_key: {self.public_key}, created: {self.created})'
 
     def __eq__(self, other):
         return all([
@@ -36,12 +38,16 @@ class Profile():
             hasattr(other, 'display_name') and self.display_name == other.display_name,
             hasattr(other, 'handle') and self.handle == other.handle,
             hasattr(other, 'user_id') and self.user_id == other.user_id,
+            hasattr(other, 'image') and self.image == other.image,
+            hasattr(other, 'cover_image') and self.cover_image == other.cover_image,
             hasattr(other, 'public_key') and self.public_key == other.public_key,
             hasattr(other, 'private_key') and self.private_key == other.private_key,
             hasattr(other, 'created') and self.created == other.created,
         ])
 
     def as_json(self):
+        # deliberatey not returning image or cover image
+        # because those should be signed urls
         return {
             'display_name': self.display_name,
             'handle': self.handle,

@@ -36,7 +36,12 @@ def login_api():
     if not user.admin:
         if not _check_admin_connection(profile):
             return 'Request to join still pending', 401
-    session['user'] = profile.as_json()
+    profile_json = profile.as_json()
+    if profile.image:
+        profile_json['image'] = current_app.url_signer([profile.image], 7200)[0]
+    if profile.cover_image:
+        profile_json['cover_image'] = current_app.url_signer([profile.cover_image], 7200)[0]
+    session['user'] = profile_json
     login_user(FlaskUser(user.id))
     now = datetime.utcnow()
     expires = now + timedelta(hours=6)
@@ -148,7 +153,6 @@ def _get_profile(user_id):
     )
     if not user_profile:
         raise Exception('User without profile found')
-    user_profile.private_key = None
     return user_profile
 
 def load_user(user_id):
@@ -158,7 +162,12 @@ def load_user(user_id):
         if user:
             session['authenticated_user'] = user.as_json()
             profile = _get_profile(user.id)
-            session['user'] = profile.as_json()
+            profile_json = profile.as_json()
+            if profile.image:
+                profile_json['image'] = current_app.url_signer(profile.image, 7200)
+            if profile.cover_image:
+                profile_json['cover_image'] = current_app.url_signer(profile.cover_image, 7200)
+            session['user'] = profile_json
         else:
             return None
     return FlaskUser(user_id)
@@ -177,7 +186,13 @@ def request_loader(request):
         if user:
             session['authenticated_user'] = user.as_json()
             profile = _get_profile(user.id)
-            session['user'] = profile.as_json()
+            profile_json = profile.as_json()
+            if profile.image:
+                profile_json['image'] = current_app.url_signer([profile.image], 7200)[0]
+            if profile.cover_image:
+                profile_json['cover_image'] = current_app.url_signer([profile.cover_image], 7200)[0]
+            session['user'] = profile_json
+            setattr(request, 'current_profile', profile)
     if user:
         return FlaskUser(user.id)
     return None

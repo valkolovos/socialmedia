@@ -4,41 +4,33 @@ from unittest import mock
 
 from collections import namedtuple
 from flask import url_for
+from flask_login import AUTH_HEADER_NAME
 
 from socialmedia import connection_status
 from socialmedia.views.utils import enc_and_sign_payload
 from test import datamodels
-from .utils import client
+from .utils import client, create_token
 
 MockResponse = namedtuple('NamedResponse', ['status_code', 'content'])
 
 def test_request_connection(client):
-    # not adding either of these to test.datamodels
-    # because an authenticated_user in the session
-    # should not need to be retrieved
     admin_user = datamodels.User(
         email='admin@example.com',
         id=datamodels.User.generate_uuid(),
         admin=True,
     )
+    admin_user.save()
     admin_profile = datamodels.Profile(
         display_name='Admin User',
         handle='admin_handle',
         user_id=admin_user.id,
     )
-    # need to set a user id in the session
-    # this will also call socialmedia.views.auth.load_user
-    with client.session_transaction() as sess:
-        sess['_user_id'] = admin_user.id
-        sess['authenticated_user'] = admin_user.as_json()
-        sess['user'] = admin_profile.as_json()
-    # need to re-request '/' to re-initialize the app context
-    # because the session transaction above destroys the context
-    client.get('/')
+    admin_profile.save()
+    token = create_token(client, admin_user)
     response = client.post(url_for('main.request_connection'), data={
         'host': 'otherhost.com',
         'handle': 'other_user',
-    })
+        }, headers={AUTH_HEADER_NAME: token})
     assert response.status_code == 200
     client.application.task_manager.queue_task.assert_called_with(
         {
@@ -63,11 +55,13 @@ def test_manage_connection_connect(client):
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
     )
+    user.save()
     profile = datamodels.Profile(
         display_name='User',
         handle='handle',
         user_id=user.id,
     )
+    profile.save()
     other_user = datamodels.User(
         email='other_user@otherhost.com',
         id=datamodels.User.generate_uuid(),
@@ -87,19 +81,11 @@ def test_manage_connection_connect(client):
         read=False,
     )
     connection.save()
-    # need to set a user id in the session
-    # this will also call socialmedia.views.auth.load_user
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    # need to re-request '/' to re-initialize the app context
-    # because the session transaction above destroys the context
-    client.get('/')
+    token = create_token(client, user)
     response = client.post(url_for('main.manage_connection'), data={
         'connection_id': connection.id,
         'action': 'connect',
-    })
+        }, headers={AUTH_HEADER_NAME: token})
     assert response.status_code == 200
     client.application.task_manager.queue_task.assert_called_with(
         {
@@ -118,11 +104,13 @@ def test_manage_connection_delete(client):
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
     )
+    user.save()
     profile = datamodels.Profile(
         display_name='User',
         handle='handle',
         user_id=user.id,
     )
+    profile.save()
     other_user = datamodels.User(
         email='other_user@otherhost.com',
         id=datamodels.User.generate_uuid(),
@@ -141,19 +129,11 @@ def test_manage_connection_delete(client):
         status=connection_status.PENDING,
     )
     connection.save()
-    # need to set a user id in the session
-    # this will also call socialmedia.views.auth.load_user
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    # need to re-request '/' to re-initialize the app context
-    # because the session transaction above destroys the context
-    client.get('/')
+    token = create_token(client, user)
     response = client.post(url_for('main.manage_connection'), data={
         'connection_id': connection.id,
         'action': 'delete',
-    })
+        }, headers={AUTH_HEADER_NAME: token})
     assert response.status_code == 200
     assert not any([e == connection for e in datamodels.Connection._data])
 
@@ -162,11 +142,13 @@ def test_manage_connection_decline(client):
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
     )
+    user.save()
     profile = datamodels.Profile(
         display_name='User',
         handle='handle',
         user_id=user.id,
     )
+    profile.save()
     other_user = datamodels.User(
         email='other_user@otherhost.com',
         id=datamodels.User.generate_uuid(),
@@ -185,19 +167,11 @@ def test_manage_connection_decline(client):
         status=connection_status.PENDING,
     )
     connection.save()
-    # need to set a user id in the session
-    # this will also call socialmedia.views.auth.load_user
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    # need to re-request '/' to re-initialize the app context
-    # because the session transaction above destroys the context
-    client.get('/')
+    token = create_token(client, user)
     response = client.post(url_for('main.manage_connection'), data={
         'connection_id': connection.id,
         'action': 'decline',
-    })
+        }, headers={AUTH_HEADER_NAME: token})
     assert response.status_code == 200
     assert connection.status == connection_status.DECLINED
 
@@ -206,11 +180,13 @@ def test_manage_connection_invalid_action(client):
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
     )
+    user.save()
     profile = datamodels.Profile(
         display_name='User',
         handle='handle',
         user_id=user.id,
     )
+    profile.save()
     other_user = datamodels.User(
         email='other_user@otherhost.com',
         id=datamodels.User.generate_uuid(),
@@ -229,19 +205,11 @@ def test_manage_connection_invalid_action(client):
         status=connection_status.PENDING,
     )
     connection.save()
-    # need to set a user id in the session
-    # this will also call socialmedia.views.auth.load_user
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    # need to re-request '/' to re-initialize the app context
-    # because the session transaction above destroys the context
-    client.get('/')
+    token = create_token(client, user)
     response = client.post(url_for('main.manage_connection'), data={
         'connection_id': connection.id,
         'action': 'invalid',
-    })
+        }, headers={AUTH_HEADER_NAME: token})
     assert response.status_code == 400
     assert response.data == b'Invalid action requested - invalid'
 
@@ -257,21 +225,17 @@ def test_manage_connection_invalid_id(client):
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
     )
+    user.save()
     profile = datamodels.Profile(
         display_name='User',
         handle='handle',
         user_id=user.id,
     )
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    # need to re-request '/' to re-initialize the app context
-    # because the session transaction above destroys the context
-    client.get('/')
+    profile.save()
+    token = create_token(client, user)
     response = client.post(url_for('main.manage_connection'), data={
         'action': 'connect',
-    })
+        }, headers={AUTH_HEADER_NAME: token})
     assert response.status_code == 400
 
 def test_manage_connection_missing_connection(client):
@@ -279,22 +243,18 @@ def test_manage_connection_missing_connection(client):
         email='user@example.com',
         id=datamodels.User.generate_uuid(),
     )
+    user.save()
     profile = datamodels.Profile(
         display_name='User',
         handle='handle',
         user_id=user.id,
     )
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
-    # need to re-request '/' to re-initialize the app context
-    # because the session transaction above destroys the context
-    client.get('/')
+    profile.save()
+    token = create_token(client, user)
     response = client.post(url_for('main.manage_connection'), data={
         'connection_id': 'missing_connection',
         'action': 'decline',
-    })
+        }, headers={AUTH_HEADER_NAME: token})
     assert response.status_code == 404
 
 def test_get_connection_info(client):
@@ -424,10 +384,6 @@ def test_get_connection_info(client):
         status=connection_status.PENDING,
     )
     pending_connection.save()
-    with client.session_transaction() as sess:
-        sess['_user_id'] = user.id
-        sess['authenticated_user'] = user.as_json()
-        sess['user'] = profile.as_json()
     enc_payload_one, enc_key_one, signature_one, nonce_one, tag_one = enc_and_sign_payload(
         other_profile_one, other_connection_one, {'post_count': 1}
     )
@@ -458,8 +414,8 @@ def test_get_connection_info(client):
                 })
             ),
         ]
-        client.get('/')
-        response = client.get(url_for('main.get_connection_info'))
+        token = create_token(client, user)
+        response = client.get(url_for('main.get_connection_info'), headers={AUTH_HEADER_NAME: token})
     assert response.status_code == 200
     json_response = json.loads(response.data)
     assert len(json_response['connections']) == 3
