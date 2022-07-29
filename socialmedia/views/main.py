@@ -304,14 +304,17 @@ def update_profile_images_options():
 def update_profile_images(user_id):
     current_profile = request.current_profile
     profile_json = current_profile.as_json()
-    if request.form.get('profileImage'):
-        filename = _upload(request.form['profileImage'], 'profile', current_profile)
-        current_profile.image = filename
-        profile_json['image'] = current_app.url_signer([current_profile.image], 7200)[0]
-    if request.form.get('coverImage'):
-        filename = _upload(request.form['coverImage'], 'cover', current_profile)
-        current_profile.cover_image = filename
-        profile_json['cover_image'] = current_app.url_signer([current_profile.cover_image], 7200)[0]
+    try:
+        if request.form.get('profileImage'):
+            filename = _upload(request.form['profileImage'], 'profile', current_profile)
+            current_profile.image = filename
+            profile_json['image'] = current_app.url_signer([current_profile.image], 7200)[0]
+        if request.form.get('coverImage'):
+            filename = _upload(request.form['coverImage'], 'cover', current_profile)
+            current_profile.cover_image = filename
+            profile_json['cover_image'] = current_app.url_signer([current_profile.cover_image], 7200)[0]
+    except Exception as e:
+        return 'Invalid image data', 400
     current_profile.save()
     return profile_json, 200
 
@@ -356,6 +359,8 @@ def _perform_secure_request(url, current_profile, payload, connection):
 def _upload(image_data, image_type, current_profile):
     # data is in format "data:[content_type];[encoding],[base64 data]"
     m = re.search(r'data:([^;]*);[^,]*,(.*)', image_data)
+    if not m:
+        raise Exception('image data not in expected format')
     content_type, b64_data = m.groups()
     img_binary_data = base64.b64decode(b64_data)
     filename = secure_filename(f'{current_profile.user_id}-{image_type}.{content_type.split("/")[1]}')
