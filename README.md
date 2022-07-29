@@ -53,7 +53,7 @@ Storage is done in Firestore running in Datastore mode. You can find details abo
 Asynchronous operations (such as notifications) are implemented as Cloud Tasks. There are several queues that get created with the application installation. You can see details about these queues on the [Google Cloud Console](https://console.cloud.google.com) under Tools -> Cloud Tasks
 
 # Web-based App
-All the HTML for the web-based app is contained in the `templates` directory. Javascript is in `static`.
+There is no front-end for this app as part of this repo. There is a default front-end in https://github.com/valkolovos/socialmedia-frontend.
 
 # Code coverage
 Code coverage is stored in the `htmlcov` directory. To view, you can go to https://htmlpreview.github.io/. Here is a link for [coverage for the main branch](https://htmlpreview.github.io/?https://github.com/valkolovos/socialmedia/blob/main/htmlcov/index.html)
